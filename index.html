@@ -366,6 +366,8 @@ nav{display:flex;gap:2px}
 .tvbox .toast,.tvbox #modal.on{animation:none}
 .tvbox #modal{background:#02030af2}
 .tvbox .gc{transition:none}
+.o-tech{display:inline-flex;gap:8px;margin-left:14px;vertical-align:middle}
+.o-tech b{font-size:15px;font-weight:800;letter-spacing:.02em;padding:3px 9px;border-radius:6px;background:#ffffff1f;border:1px solid #ffffff3d;color:#fff}
 </style>
 </head>
 <body>
@@ -1059,7 +1061,7 @@ function setScreen(sc,target,muted=true){
 }
 function killVideo(sc){if(sc.hls){try{sc.hls.destroy()}catch(e){}sc.hls=null}if(sc.video){try{sc.video.pause();sc.video.removeAttribute('src');sc.video.load()}catch(e){}sc.video.remove();sc.video=null}}
 function destroyScreen(sc){if(!sc)return;killVideo(sc);SCREENS.delete(sc);if(sc.cv)sc.cv.remove();sc.cv=null}
-function loadVideo(sc,url){if(sc.hls){sc.hls.destroy();sc.hls=null}const v=sc.video;if(/\.m3u8/.test(url)&&window.Hls&&Hls.isSupported()){sc.hls=new Hls({maxBufferLength:20});sc.hls.loadSource(url);sc.hls.attachMedia(v)}else v.src=url;v.play().catch(()=>{})}
+function loadVideo(sc,url){if(sc.hls){sc.hls.destroy();sc.hls=null}const v=sc.video;if(/\.m3u8/.test(url)&&window.Hls&&Hls.isSupported()){sc.hls=new Hls({maxBufferLength:20});sc.hls.loadSource(url);sc.hls.attachMedia(v);sc.hls.on(Hls.Events.LEVEL_SWITCHED,()=>sc===P.sc&&updTech());sc.hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,()=>sc===P.sc&&updTech())}else v.src=url;if(!v._tech){v._tech=1;v.addEventListener('resize',()=>sc===P.sc&&updTech());v.addEventListener('loadedmetadata',()=>sc===P.sc&&updTech())}v.play().catch(()=>{})}
 let lastDraw=0;
 function loop(t){requestAnimationFrame(loop);if(t-lastDraw<33)return;lastDraw=t;for(const sc of SCREENS){if(!sc.cv||!sc.cv.isConnected){SCREENS.delete(sc);continue}if(sc.cv.offsetParent===null)continue;try{drawScene(sc,t)}catch(e){}}}
 function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
@@ -1194,6 +1196,27 @@ function actsFor(){
  if(p&&p.match)a.push(btn('spoiler','shield',spoil(p)?'Reveal score':'Hide scores'));else a.push(btn('sleep','moon',P.sleepAt?`Sleep ${fmtIn(P.sleepAt-now())}`:'Sleep'));
  return a;
 }
+
+/* stream details for the banner: 1080p · 50fps · 6.2 Mbps · HEVC · 5.1 Dolby */
+function techInfo(){const sc=P.sc,v=sc&&sc.video;if(!v)return[];const out=[];const h=sc.hls;let lv=null;
+ try{if(h&&h.levels&&h.levels.length){const i=h.currentLevel>=0?h.currentLevel:(h.loadLevel>=0?h.loadLevel:0);lv=h.levels[i]||null}}catch(e){}
+ const H=(lv&&lv.height)||v.videoHeight||0;
+ if(H)out.push(H>=2000?'4K UHD':H>=1400?'1440p':H>=1000?'1080p':H>=700?'720p':H>=540?'576p SD':H+'p');
+ let fps=lv&&(lv.frameRate||parseFloat(lv.attrs&&lv.attrs['FRAME-RATE']));
+ if(!fps&&v.getVideoPlaybackQuality){const q=v.getVideoPlaybackQuality(),tm=performance.now();const m=sc._fm;if(m&&tm-m.t>900&&q.totalVideoFrames>m.f){sc._fps=(q.totalVideoFrames-m.f)/((tm-m.t)/1000);sc._fm={f:q.totalVideoFrames,t:tm}}else if(!m)sc._fm={f:q.totalVideoFrames,t:tm};fps=sc._fps}
+ if(fps)out.push((fps>47&&fps<53?50:fps>57&&fps<63?60:fps>23&&fps<26.5?Math.round(fps):fps>28&&fps<31?30:Math.round(fps))+'fps');
+ if(lv&&lv.bitrate)out.push((lv.bitrate/1e6).toFixed(lv.bitrate<1e7?1:0)+' Mbps');
+ const vc=(lv&&(lv.videoCodec||lv.attrs&&lv.attrs.CODECS)||'').toLowerCase();
+ if(/hvc1|hev1/.test(vc))out.push('HEVC');else if(/avc1/.test(vc))out.push('H.264');else if(/av01/.test(vc))out.push('AV1');
+ let ac=(lv&&lv.audioCodec||'').toLowerCase(),chn='';
+ try{const at=h&&h.audioTracks&&h.audioTracks[h.audioTrack];if(at){chn=at.attrs&&at.attrs.CHANNELS||'';if(!ac&&at.audioCodec)ac=at.audioCodec.toLowerCase()}}catch(e){}
+ const ch=chn?(+chn>=8?'7.1':+chn>=6?'5.1':+chn===1?'Mono':'Stereo'):'';
+ const an=/ec-3/.test(ac)?'Dolby Digital+':/ac-3/.test(ac)?'Dolby Digital':/mp4a/.test(ac)?'AAC':'';
+ if(ch||an)out.push([ch,an].filter(Boolean).join(' '));
+ return out}
+function techHTML(){return techInfo().map(x=>`<b>${esc(x)}</b>`).join('')}
+function updTech(){const e=$('#otech');if(e)e.innerHTML=techHTML()}
+setInterval(()=>{if(P.open&&P.osd)updTech()},1500);
 function renderOSD(){
  const o=$('#osd'),t=now();let html='';
  const ch=P.browse!=null?chans()[P.browse]:(P.cur&&P.cur.kind==='channel'?P.cur:null);
@@ -1201,11 +1224,11 @@ function renderOSD(){
   html=`<div class="o-row"><div class="o-ch">${P.browse!=null?'<div class="o-prev scr" id="oprev"></div>':''}<div class="o-num">${ch.num}</div><div class="o-lg" style="${logoStyle(ch)}">${logoHTML(ch)}${ch.logo?'':esc(ch.name)}</div></div>
   <div class="o-main"><div class="kick">${P.browse!=null?'<span class="pill">MINI GUIDE · ◀ ▶ browse · OK watch · BACK close</span>':`<span class="pill ${behind?'cu':'live'}">${behind?'CATCH UP':'LIVE'}</span>`}<span>${esc(p?.genre||'')}</span>${p?.se?`<span>${p.se}</span>`:''}${p?.match?`<span>${esc(matchLine(p))}</span>`:''}</div>
   <div class="o-title">${esc(p?.title||ch.name)}</div>
-  <div class="o-sub">${p&&!p.ph?`${fmtT(p.start)} – ${fmtT(p.end)} · ${Math.max(0,Math.round((p.end-t)/MIN))} min left`:'No guide information'}${behind?` · <b>${fmtClock(behind)} behind live</b>`:''}</div>
+  <div class="o-sub">${p&&!p.ph?`${fmtT(p.start)} – ${fmtT(p.end)} · ${Math.max(0,Math.round((p.end-t)/MIN))} min left`:'No guide information'}${behind?` · <b>${fmtClock(behind)} behind live</b>`:''}<span class="o-tech" id="otech">${techHTML()}</span></div>
   ${p?`<div class="o-bar"><i style="width:${pct(p)}%"></i>${behind?`<b style="left:${clamp((t-behind-p.start)/(p.end-p.start)*100,0,100)}%"></b>`:''}${(REACTS[p.id]||[]).map(x=>`<u style="left:${x}%"></u>`).join('')}</div>`:''}
   ${nx?`<div class="o-next">Next ${fmtT(nx.start)} · ${esc(nx.title)}</div>`:''}</div></div>`;
  }else if(P.cur){const c=P.cur,dur=(c.mins||60)*60,pos=c.url&&P.sc&&P.sc.video?P.sc.video.currentTime:P.vodPos;
-  html=`<div class="o-row"><div class="o-main"><div class="kick"><span class="pill">${c.kind==='ep'?'BOX SET':'MOVIE'}</span><span>${esc(c.genre||'')}</span>${c.year?`<span>${c.year}</span>`:''}${c.se?`<span>${esc(c.se)}</span>`:''}</div><div class="o-title">${esc(c.kind==='ep'?c.parent.title+' — '+c.title:c.title)}</div><div class="o-sub">${fmtClock(pos*1000)} / ${fmtClock(dur*1000)} · ◀ ▶ skip 30s</div><div class="o-bar"><i style="width:${clamp(pos/dur*100,0,100)}%"></i>${(REACTS[c.id]||[]).map(x=>`<u style="left:${x}%"></u>`).join('')}</div></div></div>`}
+  html=`<div class="o-row"><div class="o-main"><div class="kick"><span class="pill">${c.kind==='ep'?'BOX SET':'MOVIE'}</span><span>${esc(c.genre||'')}</span>${c.year?`<span>${c.year}</span>`:''}${c.se?`<span>${esc(c.se)}</span>`:''}</div><div class="o-title">${esc(c.kind==='ep'?c.parent.title+' — '+c.title:c.title)}</div><div class="o-sub">${fmtClock(pos*1000)} / ${fmtClock(dur*1000)} · ◀ ▶ skip 30s<span class="o-tech" id="otech">${techHTML()}</span></div><div class="o-bar"><i style="width:${clamp(pos/dur*100,0,100)}%"></i>${(REACTS[c.id]||[]).map(x=>`<u style="left:${x}%"></u>`).join('')}</div></div></div>`}
  if(P.osd&&P.browse==null)html+=P.react?`<div class="o-acts">${EMO.map(e=>`<div class="btn f emo" data-a="emoji" data-x="${e}">${e}</div>`).join('')}${btn('reactClose','check','Done')}</div>`:`<div class="o-acts">${actsFor().join('')}</div>`;
  o.innerHTML=html;
  if(P.browse!=null){destroyScreen(P.osdPrev);P.osdPrev=mountScreen($('#oprev'),ch,{w:320,h:180})}
