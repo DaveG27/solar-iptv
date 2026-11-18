@@ -74,6 +74,7 @@ jobs:
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
               <uses-feature android:name="android.software.leanback" android:required="false" />
               <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
               <application
@@ -133,6 +134,7 @@ jobs:
                   web = new WebView(this);
                   web.setBackgroundColor(Color.BLACK);
                   setContentView(web);
+                  registerInstallReceiver();
                   WebSettings s = web.getSettings();
                   s.setJavaScriptEnabled(true);
                   s.setDomStorageEnabled(true);
@@ -188,6 +190,23 @@ jobs:
                       }});
                   }
 
+                  // ---------------------------------------------------------------- in-app updates
+                  @JavascriptInterface
+                  public int versionCode() {
+                      try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionCode; } catch (Exception e) { return 0; }
+                  }
+
+                  @JavascriptInterface
+                  public String versionName() {
+                      try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return "?"; }
+                  }
+
+                  /** Looks at the latest GitHub release; if it's newer, optionally downloads and installs it. */
+                  @JavascriptInterface
+                  public void checkUpdate(final boolean install) {
+                      new Thread(new Runnable() { public void run() { runUpdate(install); } }).start();
+                  }
+
                   /** GET a URL natively (follows redirects, ignores CORS) and hand the result back to JS. */
                   @JavascriptInterface
                   public void httpGet(final String id, final String url) {
@@ -236,6 +255,106 @@ jobs:
                   }
               }
 
+              private static final String RELEASES = "https://api.github.com/repos/DaveG27/solar-iptv/releases/latest";
+              private static final String INSTALL_ACTION = "com.solar.iptv.INSTALL_RESULT";
+              private volatile boolean updating = false;
+              private android.content.BroadcastReceiver installReceiver;
+
+              private void upd(final String state, final String msg) {
+                  final String js = "window.onUpdate&&onUpdate(" + org.json.JSONObject.quote(state) + "," + org.json.JSONObject.quote(msg == null ? "" : msg) + ")";
+                  runOnUiThread(new Runnable() { public void run() { if (web != null) web.evaluateJavascript(js, null); } });
+              }
+
+              private void runUpdate(boolean install) {
+                  if (updating) { upd("busy", ""); return; }
+                  updating = true;
+                  try {
+                      java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(RELEASES).openConnection();
+                      c.setConnectTimeout(15000); c.setReadTimeout(20000);
+                      c.setRequestProperty("User-Agent", "SolarIPTV");
+                      c.setRequestProperty("Accept", "application/vnd.github+json");
+                      java.io.InputStream in = c.getInputStream();
+                      java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                      byte[] b = new byte[16384]; int n;
+                      while ((n = in.read(b)) > 0) bo.write(b, 0, n);
+                      in.close(); c.disconnect();
+                      org.json.JSONObject rel = new org.json.JSONObject(new String(bo.toByteArray(), "UTF-8"));
+                      String tag = rel.optString("tag_name", "");
+                      int latest = 0;
+                      try { latest = Integer.parseInt(tag.replaceAll("[^0-9]", "")); } catch (Exception ignored) { }
+                      String apk = null;
+                      org.json.JSONArray assets = rel.optJSONArray("assets");
+                      for (int i = 0; assets != null && i < assets.length(); i++) {
+                          String u = assets.getJSONObject(i).optString("browser_download_url", "");
+                          if (u.endsWith(".apk")) { apk = u; break; }
+                      }
+                      int mine = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+                      if (apk == null || latest <= mine) { upd("none", ""); return; }
+                      if (!install) { upd("available", "1.0." + latest); return; }
+                      if (android.os.Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                          upd("permission", "");
+                          startActivity(new android.content.Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                  android.net.Uri.parse("package:" + getPackageName())).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+                          return;
+                      }
+                      java.io.File f = new java.io.File(getCacheDir(), "update.apk");
+                      java.net.HttpURLConnection d = (java.net.HttpURLConnection) new java.net.URL(apk).openConnection();
+                      d.setInstanceFollowRedirects(true);
+                      d.setConnectTimeout(20000); d.setReadTimeout(60000);
+                      d.setRequestProperty("User-Agent", "SolarIPTV");
+                      long total = d.getContentLength(), done = 0; int last = -1;
+                      java.io.InputStream di = d.getInputStream();
+                      java.io.OutputStream fo = new java.io.FileOutputStream(f);
+                      byte[] buf = new byte[65536];
+                      while ((n = di.read(buf)) > 0) {
+                          fo.write(buf, 0, n); done += n;
+                          int pct = total > 0 ? (int) (done * 100 / total) : -1;
+                          if (pct != last && pct % 5 == 0) { last = pct; upd("progress", String.valueOf(pct)); }
+                      }
+                      fo.close(); di.close(); d.disconnect();
+                      upd("installing", "1.0." + latest);
+                      android.content.pm.PackageInstaller pi = getPackageManager().getPackageInstaller();
+                      int sid = pi.createSession(new android.content.pm.PackageInstaller.SessionParams(
+                              android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL));
+                      android.content.pm.PackageInstaller.Session ses = pi.openSession(sid);
+                      java.io.OutputStream so = ses.openWrite("base.apk", 0, f.length());
+                      java.io.InputStream fi = new java.io.FileInputStream(f);
+                      while ((n = fi.read(buf)) > 0) so.write(buf, 0, n);
+                      fi.close(); ses.fsync(so); so.close();
+                      int fl = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
+                      if (android.os.Build.VERSION.SDK_INT >= 31) fl |= android.app.PendingIntent.FLAG_MUTABLE;
+                      android.app.PendingIntent pend = android.app.PendingIntent.getBroadcast(this, sid,
+                              new android.content.Intent(INSTALL_ACTION).setPackage(getPackageName()), fl);
+                      ses.commit(pend.getIntentSender());
+                      ses.close();
+                  } catch (Exception e) {
+                      upd("error", e.getClass().getSimpleName() + (e.getMessage() == null ? "" : ": " + e.getMessage()));
+                  } finally {
+                      updating = false;
+                  }
+              }
+
+              private void registerInstallReceiver() {
+                  installReceiver = new android.content.BroadcastReceiver() {
+                      @Override public void onReceive(android.content.Context ctx, android.content.Intent it) {
+                          int st = it.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999);
+                          if (st == android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION) {
+                              android.content.Intent confirm = it.getParcelableExtra(android.content.Intent.EXTRA_INTENT);
+                              if (confirm != null) {
+                                  confirm.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                                  try { startActivity(confirm); } catch (Exception ignored) { }
+                              }
+                          } else if (st != android.content.pm.PackageInstaller.STATUS_SUCCESS) {
+                              String m = it.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE);
+                              upd("error", m == null ? "install cancelled" : m);
+                          }
+                      }
+                  };
+                  android.content.IntentFilter flt = new android.content.IntentFilter(INSTALL_ACTION);
+                  if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(installReceiver, flt, android.content.Context.RECEIVER_NOT_EXPORTED);
+                  else registerReceiver(installReceiver, flt);
+              }
+
               private void sendKey(String k) {
                   web.evaluateJavascript("window.handle&&handle('" + k + "')", null);
               }
@@ -278,7 +397,7 @@ jobs:
               @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
               @Override protected void onResume() { super.onResume(); web.onResume(); hideBars(); }
               @Override protected void onPause() { web.onPause(); super.onPause(); }
-              @Override protected void onDestroy() { if (web != null) web.destroy(); super.onDestroy(); }
+              @Override protected void onDestroy() { try { if (installReceiver != null) unregisterReceiver(installReceiver); } catch (Exception ignored) { } if (web != null) web.destroy(); super.onDestroy(); }
               @Override public void onWindowFocusChanged(boolean f) { super.onWindowFocusChanged(f); if (f) hideBars(); }
           }
           XEOF
