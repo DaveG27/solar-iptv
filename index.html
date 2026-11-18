@@ -347,6 +347,9 @@ nav{display:flex;gap:2px}
 .tk-in span b{color:#ffd75e;margin:0 8px}
 @keyframes tk{to{transform:translateX(-50%)}}
 .hintbar{position:absolute;left:90px;bottom:22px;font-size:17px;font-weight:700;color:#ffffff60;letter-spacing:.3px}
+
+/* TV boxes: drop the frosted-glass blur, which their GPUs redraw slowly on every change */
+.tvbox *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
 </style>
 </head>
 <body>
@@ -361,6 +364,7 @@ nav{display:flex;gap:2px}
  <div id="chentry"></div>
 </div>
 <script>
+if(window.Android)document.documentElement.classList.add('tvbox');
 // In the app, requests go through Android (no browser CORS rules); in a browser, plain fetch.
 const __hcb={};let __hid=0;
 window.__httpDone=(id,status,text,err)=>{const c=__hcb[id];if(!c)return;delete __hcb[id];err?c.rej(new Error(err)):c.res({status,text})};
@@ -668,7 +672,8 @@ function matchTile(p){
  <div class="mt-row"><i style="background:hsl(${m.b.h} 75% 48%)">${m.b.s[0]}</i><b>${esc(m.b.n)}</b><em class="${sh?'sh':''}" data-msc="${p.id}:b">${sh?'0':st.sb}</em></div>
  <div class="mt-ch">${p.ch.num} ${esc(p.ch.name)} · KO ${fmtT(p.start+15*MIN)}</div></div>`;
 }
-function rail(title,items,sub=''){if(!items||!items.length)return'';return `<div class="rail"><h3>${title}${sub?` <small>${sub}</small>`:''}</h3><div class="track">${items.join('')}</div></div>`}
+const RAIL_MAX=36; // a provider can have thousands of films; drawing them all made every page switch crawl
+function rail(title,items,sub=''){if(!items||!items.length)return'';return `<div class="rail"><h3>${title}${sub?` <small>${sub}</small>`:''}</h3><div class="track">${items.slice(0,RAIL_MAX).join('')}</div></div>`}
 function uniqBy(a,f){const s=new Set();return a.filter(x=>{const k=f(x);if(s.has(k))return false;s.add(k);return true})}
 const dayHash=()=>hash(new Date().toDateString());
 function trending(){const r=rng(dayHash());const pool=[...MOVIES,...SERIES].filter(kidsOK);for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}return pool.slice(0,10)}
@@ -805,17 +810,17 @@ function homeRails(){
  r.push(rail('Live &amp; upcoming football',footballLive().map(matchTile),S.set.spoiler?'Spoiler Shield on':''));
  const pl=S.playlist.map(plResolve).filter(Boolean);r.push(rail('Your Playlist',pl.map(o=>tile(o))));
  r.push(rail('Starting soon',soonList(p=>p.ch.cat!=='news',90).slice(0,14).map(p=>tile(p))));
- r.push(rail('New &amp; hot movies',MOVIES.filter(m=>m.year>=2025).map(m=>poster(m,{badge:m.year===2026?'NEW':''}))));
- r.push(rail('Box sets to binge',SERIES.slice(0,16).map(s=>poster(s))));
+ r.push(rail('New &amp; hot movies',MOVIES.filter(m=>m.year>=2025).slice(0,RAIL_MAX).map(m=>poster(m,{badge:m.year===2026?'NEW':''}))));
+ r.push(rail('Box sets to binge',SERIES.slice(0,16).slice(0,RAIL_MAX).map(s=>poster(s))));
  const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched channels',rc.map(c=>tile(c))));
  r.push(rail('For the kids',[...liveList(p=>p.ch.cat==='kids'),...MOVIES.filter(m=>m.genre==='Family')].map(o=>tile(o))));
  return r.filter(Boolean);
 }
-function kidsRails(){return[rail('Live for kids',liveList(p=>p.ch.cat==='kids').map(p=>tile(p))),rail('Family movies',MOVIES.filter(m=>m.genre==='Family').map(m=>poster(m))),rail('Coming up',soonList(p=>p.ch.cat==='kids',180).map(p=>tile(p))),rail('Mood',MOODO.filter(m=>['laugh','feel'].includes(m.k)).map(moodTile))].filter(Boolean)}
+function kidsRails(){return[rail('Live for kids',liveList(p=>p.ch.cat==='kids').map(p=>tile(p))),rail('Family movies',MOVIES.filter(m=>m.genre==='Family').slice(0,RAIL_MAX).map(m=>poster(m))),rail('Coming up',soonList(p=>p.ch.cat==='kids',180).map(p=>tile(p))),rail('Mood',MOODO.filter(m=>['laugh','feel'].includes(m.k)).map(moodTile))].filter(Boolean)}
 V.home=browseView(homeSpot,homeRails);
 V.sports=browseView(()=>[...footballLive().filter(isLive),...liveList(p=>p.ch.cat==='sport')].slice(0,5),()=>[
  rail('Scores',footballLive().map(matchTile),S.set.spoiler?'Spoiler Shield on — open a match to reveal':'Live, upcoming and full-time'),
- rail('Live on sport channels',liveList(p=>p.ch.cat==='sport').map(p=>tile(p))),
+ rail('Live on sport channels',liveList(p=>p.ch.cat==='sport').slice(0,RAIL_MAX).map(p=>tile(p))),
  rail('Coming up in sport',soonList(p=>p.ch.cat==='sport',360).map(p=>tile(p))),
  rail('Sport superpowers',[POWERS[5],POWERS[0],POWERS[4]].map(powerTile)),
 ].filter(Boolean));
@@ -824,14 +829,14 @@ function tickerHTML(){const items=footballLive().map(p=>{const st=matchState(p),
 const GEN_ORDER=['Action','Sci-Fi','Thriller','Comedy','Drama','Family','Romance','Horror'];
 V.movies=browseView(()=>[...liveList(p=>p.ch.cat==='movie').slice(0,2),...MOVIES.filter(m=>m.year===2026).slice(0,3)],()=>[
  rail('On movie channels now',liveList(p=>p.ch.cat==='movie').map(p=>tile(p))),
- ...GEN_ORDER.map(g=>rail(g,MOVIES.filter(m=>m.genre===g).map(m=>poster(m)))),
+ ...GEN_ORDER.map(g=>rail(g,MOVIES.filter(m=>m.genre===g).slice(0,RAIL_MAX).map(m=>poster(m)))),
 ].filter(Boolean));
 V.tv=browseView(()=>[...SERIES.slice(0,3),liveList(p=>p.ch.cat==='ent')[0]],()=>[
- rail('Box sets',SERIES.map(s=>poster(s))),
+ rail('Box sets',SERIES.slice(0,RAIL_MAX).map(s=>poster(s))),
  rail('Live entertainment',liveList(p=>p.ch.cat==='ent').map(p=>tile(p))),
  rail('Later tonight',soonList(p=>p.ch.cat==='ent',300).map(p=>tile(p))),
- rail('Crime &amp; thrillers',SERIES.filter(s=>s.genre==='Crime').map(s=>poster(s))),
- rail('Comedy',SERIES.filter(s=>s.genre==='Comedy').map(s=>poster(s))),
+ rail('Crime &amp; thrillers',SERIES.filter(s=>s.genre==='Crime').slice(0,RAIL_MAX).map(s=>poster(s))),
+ rail('Comedy',SERIES.filter(s=>s.genre==='Comedy').slice(0,RAIL_MAX).map(s=>poster(s))),
 ].filter(Boolean));
 V.kids=browseView(()=>[...liveList(p=>p.ch.cat==='kids').slice(0,3),MOVIES.find(m=>m.genre==='Family')],kidsRails);
 const _ka=V.kids.after;V.kids.after=()=>{setHue(48);_ka()};
@@ -1288,7 +1293,7 @@ function needEpg(ch){if(!ch||ch.epgReq||!XT.get)return;ch.epgReq=1;XT.q.push(ch)
 function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++;XT.get(XT.api(`get_short_epg&stream_id=${ch.sid}&limit=30`)).then(j=>{const L=(j&&j.epg_listings)||[];const ps=L.map(x=>reg(deco({kind:'prog',id:`p${ch.sid}_${x.start_timestamp}`,ch,title:b64(x.title)||ch.name,desc:b64(x.description),start:+x.start_timestamp*1000,end:+x.stop_timestamp*1000,genre:CATS[ch.cat],pool:'',hue:(ch.hue+hash(b64(x.title))%40)%360},'x'))).filter(p=>p.end>p.start).sort((a,b)=>a.start-b.start);if(ps.length)ch.epg=ps}).catch(()=>{}).finally(()=>{XT.busy--;epgRefresh();pumpEpg()})}}
 let epgT;function epgRefresh(){clearTimeout(epgT);epgT=setTimeout(()=>{if(S.view==='guide'&&!modalOn()){const r=FOC&&FOC.classList.contains('gc')?+FOC.dataset.r:null;const gx=G.gx,gy=G.gy;guideRows();G.gx=gx;G.gy=gy;applyG();if(r!=null){const c=cellAt(r,G.time);if(c)setFocus(c)}}},500)}
 function xtRails(){const r=[];r.push(rail('Continue watching',contItems().map(([o,v])=>tile(o,{prog:v}))));const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched',rc.map(c=>tile(c))));r.push(rail(`Solar superpowers`,POWERS.filter(p=>!['pw_catch','pw_spoil'].includes(p.id)).map(powerTile)));
- XT.cats.slice(0,6).forEach(c=>r.push(rail(esc(c.name),CHANNELS.filter(x=>x.xcat===c.id).slice(0,20).map(x=>tile(x)))));r.push(rail('Movies',MOVIES.slice(0,30).map(m=>poster(m))));r.push(rail('Box sets',SERIES.slice(0,30).map(s=>poster(s))));return r.filter(Boolean)}
+ XT.cats.slice(0,6).forEach(c=>r.push(rail(esc(c.name),CHANNELS.filter(x=>x.xcat===c.id).slice(0,20).map(x=>tile(x)))));r.push(rail('Movies',MOVIES.slice(0,30).slice(0,RAIL_MAX).map(m=>poster(m))));r.push(rail('Box sets',SERIES.slice(0,30).slice(0,RAIL_MAX).map(s=>poster(s))));return r.filter(Boolean)}
 async function xtSeriesEps(s){if(s.epsLoaded||!XT.get)return;try{const j=await XT.get(XT.api(`get_series_info&series_id=${s.sid}`));const seasons=j&&j.episodes||{};const first=Object.keys(seasons).sort((a,b)=>a-b)[0];const list=seasons[first]||[];s.eps=list.length;s.epUrls=list.map(e=>`${XT.base}/series/${encodeURIComponent(XT.user)}/${encodeURIComponent(XT.pass)}/${e.id}.${e.container_extension||'mp4'}`);s.epTitles=list.map(e=>e.title);s.epsLoaded=true;Object.keys(REG).filter(k=>k.startsWith(s.id+'_e')).forEach(k=>delete REG[k]);epsOf(s).forEach((e,i)=>{if(s.epTitles[i])e.title=s.epTitles[i]})}catch(e){}}
 
 /* frame mode */
