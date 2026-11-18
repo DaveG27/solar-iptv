@@ -379,6 +379,9 @@ nav{display:flex;gap:2px}
 .pcol{display:flex;gap:16px;margin:18px 0}
 .pcol .sw{width:64px;height:64px;border-radius:50%;cursor:pointer}
 .pcol .sw.sel{box-shadow:0 0 0 4px #fff}.pcol .sw.foc{box-shadow:0 0 0 4px #fff,0 0 0 8px #ffffff55}
+.plist.hl{max-height:330px}
+.plist .st-row{margin:0}
+#osd .btn.on svg{color:#ffd23f}
 </style>
 </head>
 <body>
@@ -427,6 +430,10 @@ const IC={
  search:sv('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/>'),
  play:sv('<path d="M7 4.6v14.8a1 1 0 0 0 1.5.87l12.4-7.4a1 1 0 0 0 0-1.73L8.5 3.73A1 1 0 0 0 7 4.6z"/>',1),
  plus:sv('<path d="M12 5v14M5 12h14"/>'),
+ star:sv('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/>'),
+ starf:sv('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/>',1),
+ eyeoff:sv('<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3.2 4.2M6.3 6.3A13 13 0 0 0 2 12c1 2.5 5 7 10 7 1.7 0 3.3-.5 4.7-1.3"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'),
+ eye:sv('<path d="M2 12c1-2.5 5-7 10-7s9 4.5 10 7c-1 2.5-5 7-10 7S3 14.5 2 12z"/><circle cx="12" cy="12" r="3"/>'),
  edit:sv('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'),
  trash:sv('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
  check:sv('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
@@ -480,6 +487,14 @@ const isKids=()=>!!(PROF[S.profile]&&PROF[S.profile].kids);
 const pk=k=>S.profile==='main'?k:k+'@'+S.profile; // 'main' keeps the original storage keys
 function loadProfileData(){S.playlist=LS.get(pk('playlist'),S.profile==='main'?['T:The Harbour','m3']:[]);S.reminders=LS.get(pk('rem'),[]);S.recent=LS.get(pk('recent'),[]);S.cont=S.source==='xt'?LS.get(pk(xtContKey()),{}):LS.get(pk('cont'),null)}
 loadProfileData();
+const LISTS={fav:[],hid:[],hidc:[],v:0};
+function listSuf(){try{return S.source==='xt'?'_'+(XT.pid||'x'):'_demo'}catch(e){return'_demo'}}
+function loadLists(){const f=listSuf();LISTS.fav=LS.get(pk('fav'+f),[]);LISTS.hid=LS.get(pk('hid'+f),[]);LISTS.hidc=LS.get(pk('hidc'+f),[]);LISTS.v++}
+function saveLists(){const f=listSuf();LS.set(pk('fav'+f),LISTS.fav);LS.set(pk('hid'+f),LISTS.hid);LS.set(pk('hidc'+f),LISTS.hidc);LISTS.v++}
+const isFav=id=>LISTS.fav.includes(id);
+const grpOf=c=>S.source==='xt'?c.xcat:c.cat;
+function toggleIn(a,x){const i=a.indexOf(x);if(i>=0)a.splice(i,1);else a.push(x);return i<0}
+loadLists();
 
 /* ---------- content library (demo) ---------- */
 const NAMES=['Maya','Tom','Priya','Callum','Ruth','Jonah','Elena','Marcus','Isla','Dev','Grace','Sami'];
@@ -609,7 +624,7 @@ function genDemo(){
  SERIES=st.map(([t,k],i)=>{const r=rng(hash(t));return reg(deco({kind:'series',id:'s'+i,title:t,genre:POOLS[k].g,pool:k,seasons:1+Math.floor(r()*5),eps:6+Math.floor(r()*5),desc:fillT(pick(r,DESC[k]),r),year:2020+Math.floor(r()*7)}))});
  ANCHOR=Math.floor(now()/(6*HR))*6*HR-12*HR;END=ANCHOR+48*HR;
  for(const d of CH_DEF){const ch=reg({kind:'channel',id:'c'+d[0],num:d[0],name:d[1],title:d[1],cat:d[2],hue:d[3],pools:d[4],epg:[]});let t=ANCHOR;while(t<END){const r=rng(hash(ch.num+':'+t));const p=makeProg(ch,pick(r,ch.pools),t,r);ch.epg.push(p);t=p.end}CHANNELS.push(ch)}
- S.cont=LS.get(pk('cont'),null);
+ S.cont=LS.get(pk('cont'),null);loadLists();
  if(!S.cont){S.cont={m3:.42,s2:.67,m11:.18,s9:.31,m15:.77};save()}
  regExtras();
 }
@@ -629,7 +644,10 @@ function regExtras(){
 }
 
 /* ---------- lookups ---------- */
-const chans=()=>isKids()?CHANNELS.filter(c=>c.cat==='kids'):CHANNELS;
+let CHC={k:'',L:[]};
+const chans=()=>{const key=CHANNELS.length+'|'+LISTS.v+'|'+S.profile+'|'+(CHANNELS[0]&&CHANNELS[0].id);if(CHC.k===key)return CHC.L;let L=CHANNELS;
+ if(LISTS.hid.length||LISTS.hidc.length){const h=new Set(LISTS.hid),hc=new Set(LISTS.hidc);L=L.filter(c=>!h.has(c.id)&&!hc.has(grpOf(c)))}
+ if(isKids())L=L.filter(c=>c.cat==='kids');CHC={k:key,L};return L};
 function progAt(ch,t){const e=ch.epg;for(let i=0;i<e.length;i++)if(e[i].start<=t&&e[i].end>t)return e[i];return null}
 const liveProg=ch=>progAt(ch,now());
 function nextProg(ch,p){const i=ch.epg.indexOf(p);return i>=0?ch.epg[i+1]:ch.epg.find(x=>x.start>now())}
@@ -769,6 +787,7 @@ function afterFocus(el){
  const tr=el.closest('.track');if(tr){railFill(tr);const ref=el.closest('.t10')||el;tr.scrollTo({left:Math.max(0,ref.offsetLeft-90),behavior:'smooth'})}
  const rin=el.closest('.rails-in');if(rin){rin.style.transform=`translateY(${-el.closest('.rail').offsetTop}px)`}else if(el.closest('.bb')){const r2=$('#view .rails-in');if(r2)r2.style.transform='translateY(0)'}
  const vs=el.closest('.vs');if(vs)vsScroll(vs,el);
+ const pl=el.closest('.plist');if(pl)el.scrollIntoView({block:'nearest'});
  const o=REG[el.dataset.id];
  if(o){if(S.set.ambient&&o.hue!=null)setHue(o.hue);if($('#view').contains(el)&&$('#view .bb')&&!el.closest('.bb'))bbSchedule(o)}
  if(el.classList.contains('nv')||el.classList.contains('nvs'))navHover(el);else clearTimeout(navT);
@@ -870,6 +889,7 @@ function homeRails(){
  r.push(rail('Starting soon',soonList(p=>p.ch.cat!=='news',90).slice(0,14).map(p=>tile(p))));
  r.push(rail('New &amp; hot movies',MOVIES.filter(m=>m.year>=2025).slice(0,RAIL_MAX).map(m=>poster(m,{badge:m.year===2026?'NEW':''}))));
  r.push(rail('Box sets to binge',SERIES.slice(0,16).slice(0,RAIL_MAX).map(s=>poster(s))));
+ r.push(rail('Favourite channels',chans().filter(c=>isFav(c.id)).map(c=>tile(c))));
  const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched channels',rc.map(c=>tile(c))));
  r.push(rail('For the kids',[...liveList(p=>p.ch.cat==='kids'),...MOVIES.filter(m=>m.genre==='Family')].map(o=>tile(o))));
  return r.filter(Boolean);
@@ -903,9 +923,11 @@ const _ka=V.kids.after;V.kids.after=()=>{setHue(48);_ka()};
 const G={PX:7,cat:'all',gx:0,gy:0,time:0,start:0,end:0,rows:[],sc:null,lastCh:null,RH:84};
 V.guide={
  render(){G.start=Math.floor(now()/(30*MIN))*30*MIN-2*HR;G.end=G.start+28*HR;G.time=now();G.lastCh=null;
-  if(S.source==='xt'&&(G.cat==='all'||!XT.cats.find(c=>c.id===G.cat)))G.cat=XT.cats[0]?.id||'all';
-  if(S.source!=='xt'&&!CATS[G.cat])G.cat='all';
-  const tabs=S.source==='xt'?XT.cats.map(c=>[c.id,c.name]):Object.entries(CATS).filter(([k])=>!isKids()||k==='kids'||k==='all');
+  if(G.cat==='fav'&&!LISTS.fav.length)G.cat='all';
+  if(G.cat!=='fav'&&S.source==='xt'&&(G.cat==='all'||!XT.cats.find(c=>c.id===G.cat)||LISTS.hidc.includes(G.cat)))G.cat=XT.cats.find(c=>!LISTS.hidc.includes(c.id))?.id||'all';
+  if(G.cat!=='fav'&&S.source!=='xt'&&!CATS[G.cat])G.cat='all';
+  const hc=new Set(LISTS.hidc);let tabs=S.source==='xt'?XT.cats.filter(c=>!hc.has(c.id)).map(c=>[c.id,c.name]):Object.entries(CATS).filter(([k])=>(!isKids()||k==='kids'||k==='all')&&!hc.has(k));
+  if(LISTS.fav.length)tabs=[['fav','★ Favourites'],...tabs];
   return `<div class="g-head"><div class="g-prev scr" id="gprev"><div class="tag pill live">LIVE</div></div><div class="g-info" id="ginfo"></div></div>
   <div class="g-tabs" id="gtabs">${tabs.map(([k,n])=>`<div class="tab f${k===G.cat?' sel':''}" data-a="gtab" data-x="${esc(k)}">${esc(n)}</div>`).join('')}</div>
   <div class="g-grid"><div class="g-chcol"><div class="g-chin" id="gch"></div></div><div class="g-area" id="garea"><div class="g-in" id="gin"><div class="g-times" id="gtimes"></div><div class="gpast" id="gpast"></div><div class="g-rows" id="grows"></div><div class="gnow" id="gnow"></div></div></div></div>`},
@@ -935,7 +957,7 @@ V.guide={
  }
 };
 function guideRows(){
- G.rows=chans().filter(c=>S.source==='xt'?c.xcat===G.cat:(G.cat==='all'||c.cat===G.cat));
+ G.rows=G.cat==='fav'?chans().filter(c=>isFav(c.id)):chans().filter(c=>S.source==='xt'?c.xcat===G.cat:(G.cat==='all'||c.cat===G.cat));
  if(S.source==='xt')G.rows=G.rows.slice(0,250);
  const PX=G.PX,t=now();let th='';
  for(let x=G.start;x<G.end;x+=30*MIN){const d=new Date(x);th+=`<span style="left:${(x-G.start)/MIN*PX}px">${d.getHours()===0&&d.getMinutes()===0?`<b>${dayLbl(x)}</b>`:''}${fmtT(x)}</span>`}
@@ -1080,6 +1102,7 @@ const SETROWS=[
  ['autoSurf','Auto-surf speed',()=>S.set.autoSurf+' sec','How long Channel Surf lingers on each channel when you lean back and let it flick for you.'],
  ['frame','Start Frame Mode',()=>'','Turn the TV into ambient art with a clock and glanceable info. It also starts by itself after 3 minutes idle.'],
  ['source','TV providers',()=>S.source==='xt'&&S.xtCreds?provName(S.xtCreds)+(getProvs().length>1?` · ${getProvs().length} saved`:''):'Demo content','Connect an Xtream Codes login (server, username, password). The demo channels are generated so you can try every feature without a provider.'],
+ ['hidden','Hidden channels & groups',()=>`${LISTS.hid.length} channel${LISTS.hid.length===1?'':'s'} · ${LISTS.hidc.length} group${LISTS.hidc.length===1?'':'s'}`,'Hide whole channel groups you never watch, or bring back channels you hid. To hide one channel, open its Info and choose Hide channel. Favourites show in the TV Guide and on Home.'],
  ['update','Update Solar',()=>UPD.msg||('v'+(window.Android&&Android.versionName?Android.versionName():'web')),'Checks for a newer Solar and installs it over the top. Your providers, profiles and settings stay.'],
  ['reset','Reset demo data',()=>'','Clears your playlist, reminders, recently watched and settings on this device.'],
 ];
@@ -1226,7 +1249,7 @@ function curProg(){return P.cur&&P.cur.kind==='channel'?liveProg(P.cur):null}
 function actsFor(){
  const c=P.cur;if(!c)return[];
  if(c.kind!=='channel')return[btn('vodRestart','restart','Restart'),btn('plist',inPl(c.parent?c.parent.id:c.id)?'check':'plus','Playlist'),btn('react','smile','React'),btn('sleep','moon',P.sleepAt?`Sleep ${fmtIn(P.sleepAt-now())}`:'Sleep'),btn('info','info','Info')];
- const p=curProg();const a=[btn('guide','guide','TV Guide'),btn('multi','grid','Multiview'),btn('surf','surf','Surf')];
+ const p=curProg();const fv=isFav(c.id);const a=[btn('guide','guide','TV Guide'),btn('favCh',fv?'starf':'star',fv?'Favourite':'Favourite +',c.id,fv?'on':''),btn('multi','grid','Multiview'),btn('surf','surf','Surf')];
  a.push(P.ret?btn('bounceNow','bounce','Return now'):btn('bounce','bounce','Bounce Back'));
  a.push(btn('catchup','spark','Catch me up'));
  a.push(P.shift?btn('golive','play','Go live'):btn('restart','restart','Restart'));
@@ -1329,6 +1352,7 @@ function openDetails(o){
   else if(past)btns.push(btn('cuStart','restart','Watch from start',o.id,'pri'));
   else btns.push(btn('remind',isRem(o.id)?'check':'bell',isRem(o.id)?'Reminder set':'Remind me',o.id,'pri'),btn('watchCh','play',`Watch ${o.ch.name} now`,o.ch.id));
   btns.push(btn('pl',inPl(progKey(o))?'check':'plus',inPl(progKey(o))?'In Playlist':'Add to Playlist',progKey(o)));
+  btns.push(btn('favCh',isFav(o.ch.id)?'starf':'star',isFav(o.ch.id)?'Favourite channel':'Favourite channel +',o.ch.id),btn('hideCh','eyeoff','Hide channel',o.ch.id));
   if(o.match)btns.push(btn('reveal','shield',spoil(o)?'Reveal score':'Score shown',o.id));
   const other=[];for(const ch of CHANNELS)for(const p of ch.epg)if(p.title===o.title&&p!==o&&p.end>t)other.push(p);
   if(other.length){more=other.slice(0,12);moreT='Other airings'}else more=liveList(p=>p.genre===o.genre&&p!==o).slice(0,12)}
@@ -1354,6 +1378,15 @@ window.onUpdate=(st,m)=>{
  else if(st==='busy')toast('Already updating…','spark');
  else if(st==='error'){updMsg('');toast('Update failed: '+esc(m),'close')}
  UPD.asked=false};
+function openHidden(){
+ const groups=S.source==='xt'?XT.cats.map(c=>[c.id,c.name]):Object.entries(CATS).filter(([k])=>k!=='all');
+ const cnt={};for(const c of CHANNELS){const g=grpOf(c);cnt[g]=(cnt[g]||0)+1}
+ const gr=groups.map(([k,n])=>{const h=LISTS.hidc.includes(k);return `<div class="st-row f" data-a="hidCat" data-x="${esc(k)}"><span>${esc(n)} <small style="opacity:.55">${cnt[k]||0}</small></span><span class="hv" style="margin-left:auto;margin-right:14px;opacity:.7">${h?'Hidden':'Shown'}</span><span class="tg${h?'':' on'}"></span></div>`}).join('');
+ const hc=LISTS.hid.map(id=>REG[id]).filter(Boolean).map(ch=>`<div class="prow"><div class="pinfo"><b>${esc(ch.num)} ${esc(ch.name)}</b></div>${btn('unhide','eye','Unhide',ch.id)}</div>`).join('');
+ openModal(`<div class="mcard" style="width:1200px"><h2>Hidden channels &amp; groups</h2><p class="mut">Switch off groups you never watch. They disappear from the guide, Home and channel up/down.</p>
+ <h3 style="margin:18px 0 8px">Groups</h3><div class="plist hl">${gr||'<p class="mut">No groups</p>'}</div>
+ <h3 style="margin:18px 0 8px">Hidden channels</h3><div class="plist hl">${hc||'<p class="mut">None hidden. Open a channel’s Info and choose Hide channel.</p>'}</div>
+ <div class="mbtns">${btn('hidDone','check','Done',null,'pri')}</div></div>`,{focus:'.plist .f',onClose:()=>{go(S.view)}})}
 function avTile(k,p,a){return `<div class="prof f" data-a="${a}" data-x="${k}"><div class="av" style="background:${p.c}">${esc(p.l)}</div><b>${esc(p.n)}</b>${p.kids?'<span class="pkid">KIDS</span>':''}</div>`}
 function openProfiles(manage){const ks=Object.keys(PROF);const adult=!isKids();
  openModal(`<div class="mcard" style="width:auto;max-width:1600px"><h2>${manage?'Edit profiles':'Who\'s watching?'}</h2><p class="mut">${manage?'Choose a profile to rename, recolour or remove.':'Each profile has its own Playlist, reminders, recently watched and Continue watching. Kids profiles only show kids\' channels and family films.'}</p>
@@ -1367,7 +1400,7 @@ function openProfForm(k){const p=k?PROF[k]:{n:'',c:PCOL[Object.keys(PROF).length
  <div class="st-row f" data-a="profKids" id="pkids" style="margin:6px 0 0"><span>Kids profile</span><span class="tg${PF.kids?' on':''}"></span></div>
  <div class="mbtns">${btn('profSave','check','Save',null,'pri')}${k&&Object.keys(PROF).length>1?btn('profDel','trash','Remove',k):''}${btn('profManage','back','Back')}</div><div class="xmsg" id="pmsg"></div></div>`,{focus:'#pn'})}
 function openPin(target){PIN='';openModal(`<div class="mcard" style="width:620px"><h2>Enter PIN</h2><p class="mut">Grown-ups only. (Demo PIN: 1234)</p><div class="pins" id="pins">${'<i></i>'.repeat(4)}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n=>n===''?'<div></div>':`<div class="key f" data-a="pin" data-x="${n}" data-t="${target}">${n}</div>`).join('')}</div></div>`)}
-function setProfile(k){save();S.profile=k;loadProfileData();if(S.source!=='xt'&&!S.cont)S.cont={};save();closeModal(true);go('home');toast(`Switched to ${esc(PROF[k].n)}`,'smile')}
+function setProfile(k){save();S.profile=k;loadProfileData();loadLists();if(S.source!=='xt'&&!S.cont)S.cont={};save();closeModal(true);go('home');toast(`Switched to ${esc(PROF[k].n)}`,'smile')}
 
 /* provider login */
 /* ---------- several providers: saved list, switch one at a time ---------- */
@@ -1411,7 +1444,7 @@ async function xtLoad(c){
  CHANNELS.sort((a,b)=>a.num-b.num);
  MOVIES=arr(vs).map(v=>reg(deco({kind:'movie',id:'m'+v.stream_id,title:v.name||'Movie',genre:vcn[v.category_id]||'Movies',year:v.year||'',mins:0,rating:v.rating?'★ '+v.rating:'',img:v.stream_icon||'',desc:'',url:`${base}/movie/${U}/${Pw}/${v.stream_id}.${v.container_extension||'mp4'}`})));
  SERIES=arr(ss).map(x=>reg(deco({kind:'series',id:'s'+x.series_id,sid:x.series_id,title:x.name||'Series',genre:scn[x.category_id]||'Box sets',img:x.cover||'',desc:x.plot||'',xt:true})));
- S.source='xt';XT.pid=c.id||'';S.cont=LS.get(pk(xtContKey()),{});regExtras();
+ S.source='xt';XT.pid=c.id||'';S.cont=LS.get(pk(xtContKey()),{});loadLists();regExtras();
  return{ch:CHANNELS.length,mv:MOVIES.length,sr:SERIES.length};
 }
 function phProg(ch){return reg(deco({kind:'prog',id:'p'+ch.sid+'_ph',ch,title:ch.name,ph:1,start:ANCHOR,end:END,genre:CATS[ch.cat],pool:'',desc:'Guide information is loading…',hue:ch.hue},'x'))}
@@ -1420,8 +1453,8 @@ function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++
 const EPGDIRTY=new Set();let epgT;function epgRefresh(ch){if(ch)EPGDIRTY.add(ch);clearTimeout(epgT);epgT=setTimeout(()=>{if(S.view!=='guide'){EPGDIRTY.clear();return}const fr=FOC&&FOC.classList.contains('gc')?+FOC.dataset.r:null;let refocus=false;
  for(const c of EPGDIRTY){const i=G.rows.indexOf(c);if(i<0)continue;const row=$$('#grows .g-row')[i];if(!row)continue;row.innerHTML=guideCells(c,i);if(i===fr)refocus=true}EPGDIRTY.clear();
  if(refocus&&!modalOn()){const c=cellAt(fr,G.time);if(c){FOC=null;setFocus(c)}}},250)}
-function xtRails(){const r=[];r.push(rail('Continue watching',contItems().map(([o,v])=>tile(o,{prog:v}))));const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched',rc.map(c=>tile(c))));r.push(rail(`Solar superpowers`,POWERS.filter(p=>!['pw_catch','pw_spoil'].includes(p.id)).map(powerTile)));
- XT.cats.slice(0,6).forEach(c=>r.push(rail(esc(c.name),CHANNELS.filter(x=>x.xcat===c.id).slice(0,20).map(x=>tile(x)))));r.push(rail('Movies',MOVIES.slice(0,30).slice(0,RAIL_MAX).map(m=>poster(m))));r.push(rail('Box sets',SERIES.slice(0,30).slice(0,RAIL_MAX).map(s=>poster(s))));return r.filter(Boolean)}
+function xtRails(){const r=[];r.push(rail('Continue watching',contItems().map(([o,v])=>tile(o,{prog:v}))));r.push(rail('Favourite channels',chans().filter(c=>isFav(c.id)).map(c=>tile(c))));const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched',rc.map(c=>tile(c))));r.push(rail(`Solar superpowers`,POWERS.filter(p=>!['pw_catch','pw_spoil'].includes(p.id)).map(powerTile)));
+ XT.cats.filter(c=>!LISTS.hidc.includes(c.id)).slice(0,6).forEach(c=>r.push(rail(esc(c.name),chans().filter(x=>x.xcat===c.id).slice(0,20).map(x=>tile(x)))));r.push(rail('Movies',MOVIES.slice(0,30).slice(0,RAIL_MAX).map(m=>poster(m))));r.push(rail('Box sets',SERIES.slice(0,30).slice(0,RAIL_MAX).map(s=>poster(s))));return r.filter(Boolean)}
 async function xtSeriesEps(s){if(s.epList)return s.epList;const j=await XT.get(XT.api(`get_series_info&series_id=${s.sid}`));let seasons=(j&&j.episodes)||{};if(Array.isArray(seasons)){const o={};seasons.forEach((l,i)=>{if(Array.isArray(l)&&l.length)o[l[0].season||i+1]=l});seasons=o}
  const U=encodeURIComponent(XT.user),Pw=encodeURIComponent(XT.pass),out=[];
  Object.keys(seasons).sort((a,b)=>a-b).forEach(sn=>(seasons[sn]||[]).forEach((e,i)=>{const n=e.episode_num||i+1,inf=e.info||{};out.push(reg({kind:'ep',id:`${s.id}_e${e.id}`,parent:s,title:e.title||`Episode ${n}`,se:`S${sn} E${n}`,hue:(s.hue+out.length*9)%360,motif:s.motif,font:s.font,genre:s.genre,mins:Math.round((+inf.duration_secs||0)/60),desc:inf.plot||s.desc||'',img:inf.movie_image||s.img||'',url:`${XT.base}/series/${U}/${Pw}/${e.id}.${e.container_extension||'mp4'}`}))}));
@@ -1456,6 +1489,7 @@ const ACT={
  sq:el=>{Q.q=el.dataset.x.toLowerCase();$('#qq').textContent=Q.q;searchRun();const f=$('#sgrid .f');if(f)setFocus(f)},
  set:el=>{const k=el.dataset.x;
   if(k==='update'){UPD.asked=true;checkUpd(true);return}
+  if(k==='hidden')return openHidden();
   if(k==='profile')return openProfiles();if(k==='frame')return frameStart();if(k==='source')return openLogin();
   if(k==='reset'){try{Object.keys(localStorage).filter(x=>x.startsWith('solar_')).forEach(x=>localStorage.removeItem(x))}catch(e){}S.playlist=[];S.reminders=[];S.recent=[];S.cont=null;genDemoIfDemo();toast('Demo data reset','restart');return go('settings',{focus:'[data-x="reset"]'})}
   if(k==='autoSurf'){const o=[4,6,10,15];S.set.autoSurf=o[(o.indexOf(S.set.autoSurf)+1)%o.length]}else S.set[k]=!S.set[k];
@@ -1473,7 +1507,7 @@ const ACT={
   if(k===S.profile){renderTop();if(S.view==='home'||S.view==='settings')go(S.view)}toast(PF.k?`Saved ${esc(n)}`:`Added ${esc(n)}`,'check');openProfiles(!!PF.k)},
  profDel:el=>{const k=el.dataset.x;if(el.dataset.sure!=='1'){el.dataset.sure='1';el.querySelector('span').textContent='Sure? OK again';return}
   const n=PROF[k].n;delete PROF[k];saveProfs();try{Object.keys(localStorage).filter(x=>x.endsWith('@'+k)).forEach(x=>localStorage.removeItem(x))}catch(e){}
-  if(S.profile===k){S.profile=Object.keys(PROF)[0];loadProfileData();save();go('home')}toast(`Removed ${esc(n)}`,'close');openProfiles(true)},
+  if(S.profile===k){S.profile=Object.keys(PROF)[0];loadProfileData();loadLists();save();go('home')}toast(`Removed ${esc(n)}`,'close');openProfiles(true)},
  pin:el=>{const n=el.dataset.x;if(n==='⌫')PIN=PIN.slice(0,-1);else PIN+=n;$$('#pins i').forEach((d,i)=>d.classList.toggle('on',i<PIN.length));if(PIN.length===4){if(PIN==='1234')setProfile(el.dataset.t);else{PIN='';$$('#pins i').forEach(d=>d.classList.remove('on'));toast('Wrong PIN','close')}}},
  inp:el=>{el.focus();try{el.setSelectionRange(el.value.length,el.value.length)}catch(e){}},
  xtGo:async()=>{const id=$('#xid').value;const c={id:id||'p'+Date.now().toString(36),name:$('#xn').value.trim(),server:$('#xs').value.trim(),user:$('#xu').value.trim(),pass:$('#xp').value,proxy:$('#xx').value.trim()};const m=$('#xmsg');m.className='xmsg';m.textContent='Connecting…';
@@ -1487,6 +1521,13 @@ const ACT={
   setProvs(L.filter(x=>x.id!==id));try{localStorage.removeItem('solar_contxt_'+id)}catch(e){}if(activeProvId()===id){S.xtCreds=null;LS.set('xt',null)}toast(`Removed ${esc(provName(c))}`,'close');openLogin()},
  xtDemo:()=>{S.source='demo';genDemo();closeModal(true);go('home');toast('Using demo channels','spark')},
  closeModal:()=>closeModal(),
+ favCh:el=>{const id=el.dataset.x;const ch=REG[id];const on=toggleIn(LISTS.fav,id);saveLists();toast(on?`★ ${esc(ch?ch.name:'Channel')} added to Favourites`:`Removed from Favourites`,on?'check':'close');
+  el.innerHTML=`${IC[on?'starf':'star']}<span>${el.closest('#osd')?(on?'Favourite':'Favourite +'):(on?'Favourite channel':'Favourite channel +')}</span>`;el.classList.toggle('on',on)},
+ hideCh:el=>{const id=el.dataset.x;const ch=REG[id];if(el.dataset.sure!=='1'){el.dataset.sure='1';el.querySelector('span').textContent='Sure? OK again';return}
+  if(!LISTS.hid.includes(id))LISTS.hid.push(id);saveLists();closeModal(true);toast(`${esc(ch?ch.name:'Channel')} hidden · Settings → Hidden channels to bring it back`,'close');go(S.view)},
+ hidCat:el=>{const k=el.dataset.x;const on=toggleIn(LISTS.hidc,k);saveLists();el.querySelector('.tg').classList.toggle('on',!on);el.querySelector('.hv').textContent=on?'Hidden':'Shown'},
+ unhide:el=>{const id=el.dataset.x;LISTS.hid=LISTS.hid.filter(x=>x!==id);saveLists();const row=el.closest('.prow');const nx=row&&(row.nextElementSibling||row.previousElementSibling);row&&row.remove();setFocus((nx&&$('.f',nx))||$('#modal .mbtns .f'));toast('Channel back in the guide','check')},
+ hidDone:()=>closeModal(),
  appExit:()=>{try{window.Android.exit()}catch(e){}},
  watchCh:el=>playChannel(REG[el.dataset.x]),
  cuStart:el=>{const p=REG[el.dataset.x];if(!p)return;playChannel(p.ch,{shift:Math.max(0,now()-p.start),quiet:true});toast(`Catch up · ${esc(p.title)} from ${fmtT(p.start)}`,'restart')},
