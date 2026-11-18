@@ -1297,7 +1297,7 @@ function renderOSD(){
 function showOSD(focus){P.osd=true;renderOSD();$('#osd').classList.add('show');if(focus)setFocus($('#osd .o-acts .f'));bumpOSD()}
 function flashOSD(){renderOSD();$('#osd').classList.add('show');clearTimeout(P.osdT);P.osdT=setTimeout(()=>{if(!P.osd&&P.browse==null)$('#osd').classList.remove('show')},4500)}
 function hideOSD(){P.osd=false;P.react=false;P.browse=null;destroyScreen(P.osdPrev);P.osdPrev=null;$('#osd').classList.remove('show');clearTimeout(P.osdT)}
-function bumpOSD(){clearTimeout(P.osdT);P.osdT=setTimeout(()=>{if(!modalOn())hideOSD()},9000)}
+function bumpOSD(){clearTimeout(P.osdT);P.osdT=setTimeout(()=>{if(!modalOn())hideOSD()},12000)}
 function browseStep(d){const L=chans();P.browse=((P.browse??idxOf(P.cur))+d+L.length)%L.length;renderOSD();$('#osd').classList.add('show');clearTimeout(P.osdT);P.osdT=setTimeout(()=>{if(P.browse!=null)hideOSD()},9000)}
 function playerKey(k){
  if(k==='play'){minimize();return}
@@ -1461,7 +1461,7 @@ async function xtSeriesEps(s){if(s.epList)return s.epList;const j=await XT.get(X
  if(j&&j.info&&!s.desc)s.desc=j.info.plot||'';s.epList=out;s.eps=out.length;s.seasons=Object.keys(seasons).length;return out}
 
 /* frame mode */
-let frameOn=false,lastAct=now();
+let frameOn=false,lastAct=now(),lastKey=0;
 function glance(){const o=[];const rem=S.reminders.map(id=>REG[id]).filter(p=>p&&p.start>now()).sort((a,b)=>a.start-b.start)[0];if(rem)o.push(`<div class="frc"><small>Reminder · ${fmtT(rem.start)}</small><b>${esc(rem.title)}</b></div>`);const fb=footballLive().find(isLive);if(fb)o.push(`<div class="frc"><small>Live football</small><b>${esc(matchLine(fb))}</b></div>`);const mv=liveList(p=>p.ch.cat==='movie')[0];if(mv)o.push(`<div class="frc"><small>On ${mv.ch.num} ${esc(mv.ch.name)}</small><b>${esc(mv.title)}</b></div>`);o.push(`<div class="frc"><small>Your Playlist</small><b>${S.playlist.length} saved</b></div>`);return o.join('')}
 function frameStart(){if(P.open&&!P.pip)closePlayer();frameOn=true;const f=$('#frame');f.innerHTML=`<div class="aur"></div><div class="fr-clock" id="frc">${fmtT(now())}</div><div class="fr-date">${new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}</div><div class="fr-cards">${glance()}</div><div class="fr-hint">FRAME MODE · PRESS ANY BUTTON TO WAKE</div>`;f.classList.add('on')}
 function frameOff(){frameOn=false;$('#frame').classList.remove('on');lastAct=now()}
@@ -1572,7 +1572,7 @@ function keyName(e){const k=e.key,c=e.keyCode;
  if(k==='MediaPlayPause'||k==='MediaPlay'||c===179||c===85||c===415||k==='p'||k==='P')return'play';
  if(/^[0-9]$/.test(k))return'd'+k;return null}
 document.addEventListener('keydown',e=>{
- lastAct=now();const ae=document.activeElement,inInput=ae&&/INPUT|TEXTAREA/.test(ae.tagName);
+ lastAct=now();lastKey=now();const ae=document.activeElement,inInput=ae&&/INPUT|TEXTAREA/.test(ae.tagName);
  if(inInput){if(e.key==='Enter'||e.key==='Escape'){ae.blur();e.preventDefault();return}if(e.key==='ArrowUp'||e.key==='ArrowDown'){ae.blur()}else return}
  if(frameOn){e.preventDefault();frameOff();return}
  const searching=S.view==='search'&&!modalOn()&&!(P.open&&!P.pip)&&!SURF.open;
@@ -1600,7 +1600,8 @@ function back(){if($('#view').contains(FOC)){setFocus($('#top .nv.cur')||$('#top
 let chBuf='',chT;
 function digit(d){if(SURF.open||modalOn())return;chBuf+=d;const ce=$('#chentry');ce.textContent=chBuf.padEnd(3,'–');ce.style.display='block';clearTimeout(chT);if(chBuf.length>=3)commitCh();else chT=setTimeout(commitCh,1500)}
 function commitCh(){clearTimeout(chT);const n=+chBuf;chBuf='';$('#chentry').style.display='none';const L=chans();const ch=L.find(c=>c.num===n)||L.find(c=>c.num>=n);if(!ch)return toast(`No channel ${n}`,'close');playChannel(ch)}
-$('#stage').addEventListener('click',e=>{lastAct=now();if(frameOn){frameOff();return}if(P.pip&&e.target.closest('#player')){pipExpand();return}if(P.open&&!P.pip&&!e.target.closest('.f')&&!modalOn()&&e.target.closest('#player')){P.osd?hideOSD():showOSD(true);return}const f=e.target.closest('.f');if(!f)return;if(f.tagName==='INPUT'){setFocus(f);return}setFocus(f);activate(f)});
+$('#stage').addEventListener('click',e=>{if(now()-lastKey<600)return; // the remote's OK also fires a click on some boxes: it's the same press, already handled
+ lastAct=now();if(frameOn){frameOff();return}if(P.pip&&e.target.closest('#player')){pipExpand();return}if(P.open&&!P.pip&&!e.target.closest('.f')&&!modalOn()&&e.target.closest('#player')){P.osd?hideOSD():showOSD(true);return}const f=e.target.closest('.f');if(!f)return;if(f.tagName==='INPUT'){setFocus(f);return}setFocus(f);activate(f)});
 $('#stage').addEventListener('mousemove',e=>{const f=e.target.closest('.f');if(f&&f!==FOC&&scopeEl().contains(f)&&!f.classList.contains('nv')&&!f.classList.contains('nvs'))setFocus(f)});
 $('#player .pback').innerHTML=IC.back;$('#player .pback').classList.add('f');
 
