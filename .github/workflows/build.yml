@@ -146,7 +146,12 @@ jobs:
                   s.setLoadWithOverviewMode(true);
                   s.setUseWideViewPort(true);
                   s.setUserAgentString(s.getUserAgentString() + " SolarIPTV/1.0");
-                  web.setWebChromeClient(new WebChromeClient());
+                  web.setWebChromeClient(new WebChromeClient() {
+                      // No grey "play" placeholder while a channel is tuning
+                      @Override public android.graphics.Bitmap getDefaultVideoPoster() {
+                          return android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888);
+                      }
+                  });
                   web.setWebViewClient(new WebViewClient());
                   web.addJavascriptInterface(new Bridge(), "Android");
                   web.setFocusable(true);

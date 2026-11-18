@@ -689,6 +689,7 @@ function matchTile(p){
  <div class="mt-row"><i style="background:hsl(${m.b.h} 75% 48%)">${m.b.s[0]}</i><b>${esc(m.b.n)}</b><em class="${sh?'sh':''}" data-msc="${p.id}:b">${sh?'0':st.sb}</em></div>
  <div class="mt-ch">${p.ch.num} ${esc(p.ch.name)} · KO ${fmtT(p.start+15*MIN)}</div></div>`;
 }
+const BLANK_POSTER='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 const RAIL_MAX=36; // a provider can have thousands of films; drawing them all made every page switch crawl
 const RAILMORE={};let railN=0;
 function rail(title,items,sub=''){if(!items||!items.length)return'';items=items.slice(0,RAIL_MAX);const first=TVBOX?7:items.length,id='r'+(++railN);if(items.length>first)RAILMORE[id]=items.slice(first).join('');return `<div class="rail"><h3>${title}${sub?` <small>${sub}</small>`:''}</h3><div class="track" data-rid="${id}">${items.slice(0,first).join('')}</div></div>`}
@@ -784,7 +785,7 @@ function kickFor(o){
 }
 function bbText(o){
  const t=now();let meta='',desc=o.desc||'',b=[];
- if(o.kind==='prog'){const live=isLive(o);meta=`${fmtT(o.start)} – ${fmtT(o.end)}${live?` · ${Math.round((o.end-t)/MIN)} min left <div class="pb"><i data-s="${o.start}" data-e="${o.end}" style="width:${pct(o)}%"></i></div>`:''}`;
+ if(o.kind==='prog'&&o.ph){meta='Live now'}else if(o.kind==='prog'){const live=isLive(o);meta=`${fmtT(o.start)} – ${fmtT(o.end)}${live?` · ${Math.round((o.end-t)/MIN)} min left <div class="pb"><i data-s="${o.start}" data-e="${o.end}" style="width:${pct(o)}%"></i></div>`:''}`;
   b.push(live?btn('bbAct','play','Watch live','play','pri'):o.end<=t?btn('bbAct','restart','Watch from start','play','pri'):btn('bbAct',isRem(o.id)?'check':'bell',isRem(o.id)?'Reminder set':'Remind me','play','pri'));
   b.push(btn('bbAct',inPl(progKey(o))?'check':'plus',inPl(progKey(o))?'In Playlist':'Playlist','pl'))}
  else if(o.kind==='movie'||o.kind==='series'){const c=S.cont?.[o.id];if(c)meta=`<div class="pb" style="width:260px"><i style="width:${c*100}%"></i></div> ${Math.round(c*100)}% watched`;
@@ -1053,7 +1054,7 @@ function streamUrl(t){if(!t)return null;if(t.kind==='channel')return t.url||null
 function mountScreen(host,target,{w=960,h=540}={}){const sc={host,w,h,target:null};$$('canvas,video',host).forEach(e=>e.remove());setScreen(sc,target);return sc}
 function setScreen(sc,target,muted=true){
  if(!sc)return;sc.target=target;sc.t0=performance.now();const url=streamUrl(target);
- if(url){if(sc.cv){sc.cv.remove();sc.cv=null;SCREENS.delete(sc)}if(!sc.video){sc.video=document.createElement('video');sc.video.playsInline=true;sc.video.autoplay=true;sc.host.appendChild(sc.video)}sc.video.muted=muted;loadVideo(sc,url)}
+ if(url){if(sc.cv){sc.cv.remove();sc.cv=null;SCREENS.delete(sc)}if(!sc.video){sc.video=document.createElement('video');sc.video.poster=BLANK_POSTER;sc.video.playsInline=true;sc.video.autoplay=true;sc.host.appendChild(sc.video)}sc.video.muted=muted;loadVideo(sc,url)}
  else{killVideo(sc);if(!sc.cv){sc.cv=document.createElement('canvas');sc.cv.width=sc.w;sc.cv.height=sc.h;sc.ctx=sc.cv.getContext('2d');sc.host.appendChild(sc.cv)}SCREENS.add(sc)}
 }
 function killVideo(sc){if(sc.hls){try{sc.hls.destroy()}catch(e){}sc.hls=null}if(sc.video){try{sc.video.pause();sc.video.removeAttribute('src');sc.video.load()}catch(e){}sc.video.remove();sc.video=null}}
@@ -1200,7 +1201,7 @@ function renderOSD(){
   html=`<div class="o-row"><div class="o-ch">${P.browse!=null?'<div class="o-prev scr" id="oprev"></div>':''}<div class="o-num">${ch.num}</div><div class="o-lg" style="${logoStyle(ch)}">${logoHTML(ch)}${ch.logo?'':esc(ch.name)}</div></div>
   <div class="o-main"><div class="kick">${P.browse!=null?'<span class="pill">MINI GUIDE · ◀ ▶ browse · OK watch · BACK close</span>':`<span class="pill ${behind?'cu':'live'}">${behind?'CATCH UP':'LIVE'}</span>`}<span>${esc(p?.genre||'')}</span>${p?.se?`<span>${p.se}</span>`:''}${p?.match?`<span>${esc(matchLine(p))}</span>`:''}</div>
   <div class="o-title">${esc(p?.title||ch.name)}</div>
-  <div class="o-sub">${p?`${fmtT(p.start)} – ${fmtT(p.end)} · ${Math.max(0,Math.round((p.end-t)/MIN))} min left`:'No guide information'}${behind?` · <b>${fmtClock(behind)} behind live</b>`:''}</div>
+  <div class="o-sub">${p&&!p.ph?`${fmtT(p.start)} – ${fmtT(p.end)} · ${Math.max(0,Math.round((p.end-t)/MIN))} min left`:'No guide information'}${behind?` · <b>${fmtClock(behind)} behind live</b>`:''}</div>
   ${p?`<div class="o-bar"><i style="width:${pct(p)}%"></i>${behind?`<b style="left:${clamp((t-behind-p.start)/(p.end-p.start)*100,0,100)}%"></b>`:''}${(REACTS[p.id]||[]).map(x=>`<u style="left:${x}%"></u>`).join('')}</div>`:''}
   ${nx?`<div class="o-next">Next ${fmtT(nx.start)} · ${esc(nx.title)}</div>`:''}</div></div>`;
  }else if(P.cur){const c=P.cur,dur=(c.mins||60)*60,pos=c.url&&P.sc&&P.sc.video?P.sc.video.currentTime:P.vodPos;
@@ -1311,7 +1312,7 @@ async function xtLoad(c){
  S.source='xt';S.cont=LS.get('contxt',{});regExtras();
  return{ch:CHANNELS.length,mv:MOVIES.length,sr:SERIES.length};
 }
-function phProg(ch){return reg(deco({kind:'prog',id:'p'+ch.sid+'_ph',ch,title:ch.name,start:ANCHOR,end:END,genre:CATS[ch.cat],pool:'',desc:'Guide information is loading…',hue:ch.hue},'x'))}
+function phProg(ch){return reg(deco({kind:'prog',id:'p'+ch.sid+'_ph',ch,title:ch.name,ph:1,start:ANCHOR,end:END,genre:CATS[ch.cat],pool:'',desc:'Guide information is loading…',hue:ch.hue},'x'))}
 function needEpg(ch){if(!ch||ch.epgReq||!XT.get)return;ch.epgReq=1;XT.q.push(ch);pumpEpg()}
 function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++;XT.get(XT.api(`get_short_epg&stream_id=${ch.sid}&limit=30`)).then(j=>{const L=(j&&j.epg_listings)||[];const ps=L.map(x=>reg(deco({kind:'prog',id:`p${ch.sid}_${x.start_timestamp}`,ch,title:b64(x.title)||ch.name,desc:b64(x.description),start:+x.start_timestamp*1000,end:+x.stop_timestamp*1000,genre:CATS[ch.cat],pool:'',hue:(ch.hue+hash(b64(x.title))%40)%360},'x'))).filter(p=>p.end>p.start).sort((a,b)=>a.start-b.start);if(ps.length)ch.epg=ps}).catch(()=>{}).finally(()=>{XT.busy--;epgRefresh(ch);pumpEpg()})}}
 const EPGDIRTY=new Set();let epgT;function epgRefresh(ch){if(ch)EPGDIRTY.add(ch);clearTimeout(epgT);epgT=setTimeout(()=>{if(S.view!=='guide'){EPGDIRTY.clear();return}const fr=FOC&&FOC.classList.contains('gc')?+FOC.dataset.r:null;let refocus=false;
