@@ -63,6 +63,11 @@ jobs:
               compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
               lint { checkReleaseBuilds false; abortOnError false }
           }
+          dependencies {
+              implementation 'androidx.media3:media3-exoplayer:1.4.1'
+              implementation 'androidx.media3:media3-exoplayer-hls:1.4.1'
+              implementation 'androidx.media3:media3-ui:1.4.1'
+          }
           XEOF
           cat > app/src/main/AndroidManifest.xml <<'XEOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -91,6 +96,12 @@ jobs:
                           <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
                       </intent-filter>
                   </activity>
+                  <activity
+                      android:name=".PlayerActivity"
+                      android:exported="false"
+                      android:screenOrientation="landscape"
+                      android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+                      android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode" />
               </application>
           </manifest>
           XEOF
@@ -99,6 +110,7 @@ jobs:
 
           import android.annotation.SuppressLint;
           import android.app.Activity;
+          import android.content.Intent;
           import android.graphics.Color;
           import android.os.Bundle;
           import android.view.KeyEvent;
@@ -156,6 +168,19 @@ jobs:
                   @JavascriptInterface
                   public void exit() {
                       runOnUiThread(new Runnable() { public void run() { finish(); } });
+                  }
+
+                  /** Play a movie or episode in the native ExoPlayer (handles MKV, AC3/EAC3 audio and buffering). */
+                  @JavascriptInterface
+                  public void playNative(final String url, final String title, final double startMs, final String id) {
+                      runOnUiThread(new Runnable() { public void run() {
+                          Intent i = new Intent(MainActivity.this, PlayerActivity.class);
+                          i.putExtra("url", url);
+                          i.putExtra("title", title);
+                          i.putExtra("start", (long) startMs);
+                          i.putExtra("id", id);
+                          startActivityForResult(i, 42);
+                      }});
                   }
 
                   /** GET a URL natively (follows redirects, ignores CORS) and hand the result back to JS. */
@@ -234,11 +259,160 @@ jobs:
                   return super.dispatchKeyEvent(e);
               }
 
+              @Override
+              protected void onActivityResult(int req, int res, Intent d) {
+                  super.onActivityResult(req, res, d);
+                  if (req != 42 || d == null || web == null) return;
+                  String err = d.getStringExtra("err");
+                  String js = "window.nativeDone&&nativeDone(" + org.json.JSONObject.quote(String.valueOf(d.getStringExtra("id"))) + ","
+                          + d.getLongExtra("pos", 0) + "," + d.getLongExtra("dur", 0) + ","
+                          + (err == null ? "null" : org.json.JSONObject.quote(err)) + ")";
+                  web.evaluateJavascript(js, null);
+              }
+
               @Override protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
               @Override protected void onResume() { super.onResume(); web.onResume(); hideBars(); }
               @Override protected void onPause() { web.onPause(); super.onPause(); }
               @Override protected void onDestroy() { if (web != null) web.destroy(); super.onDestroy(); }
               @Override public void onWindowFocusChanged(boolean f) { super.onWindowFocusChanged(f); if (f) hideBars(); }
+          }
+          XEOF
+          cat > app/src/main/java/com/solar/iptv/PlayerActivity.java <<'XEOF'
+          package com.solar.iptv;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.KeyEvent;
+          import android.view.View;
+          import android.view.WindowManager;
+          import android.widget.FrameLayout;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import androidx.media3.common.AudioAttributes;
+          import androidx.media3.common.C;
+          import androidx.media3.common.MediaItem;
+          import androidx.media3.common.PlaybackException;
+          import androidx.media3.common.Player;
+          import androidx.media3.datasource.DefaultHttpDataSource;
+          import androidx.media3.exoplayer.DefaultLoadControl;
+          import androidx.media3.exoplayer.DefaultRenderersFactory;
+          import androidx.media3.exoplayer.ExoPlayer;
+          import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+          import androidx.media3.ui.PlayerView;
+
+          @androidx.annotation.OptIn(markerClass = androidx.media3.common.util.UnstableApi.class)
+          public class PlayerActivity extends Activity {
+              private static final String UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+              private ExoPlayer player;
+              private PlayerView view;
+              private String id;
+              private String err;
+              private boolean finished;
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON | WindowManager.LayoutParams.FLAG_FULLSCREEN);
+                  Intent it = getIntent();
+                  String url = it.getStringExtra("url");
+                  String title = it.getStringExtra("title");
+                  long start = it.getLongExtra("start", 0);
+                  id = it.getStringExtra("id");
+
+                  FrameLayout root = new FrameLayout(this);
+                  root.setBackgroundColor(Color.BLACK);
+                  view = new PlayerView(this);
+                  root.addView(view, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+                  final TextView tv = new TextView(this);
+                  tv.setText(title == null ? "" : title);
+                  tv.setTextColor(Color.WHITE);
+                  tv.setTextSize(22);
+                  tv.setPadding(56, 40, 56, 0);
+                  tv.setShadowLayer(10, 0, 0, Color.BLACK);
+                  root.addView(tv, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.TOP));
+                  setContentView(root);
+                  view.setControllerVisibilityListener(new PlayerView.ControllerVisibilityListener() {
+                      @Override public void onVisibilityChanged(int visibility) { tv.setVisibility(visibility); }
+                  });
+
+                  DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory()
+                          .setUserAgent(UA)
+                          .setAllowCrossProtocolRedirects(true)
+                          .setConnectTimeoutMs(15000)
+                          .setReadTimeoutMs(30000);
+                  DefaultLoadControl load = new DefaultLoadControl.Builder()
+                          .setBufferDurationsMs(30000, 120000, 2500, 5000)
+                          .build();
+                  DefaultRenderersFactory renderers = new DefaultRenderersFactory(this)
+                          .setEnableDecoderFallback(true)
+                          .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
+                  player = new ExoPlayer.Builder(this, renderers)
+                          .setMediaSourceFactory(new DefaultMediaSourceFactory(http))
+                          .setLoadControl(load)
+                          .setSeekBackIncrementMs(10000)
+                          .setSeekForwardIncrementMs(30000)
+                          .build();
+                  player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true);
+                  player.addListener(new Player.Listener() {
+                      @Override public void onPlayerError(PlaybackException e) {
+                          err = e.getErrorCodeName() + (e.getCause() != null && e.getCause().getMessage() != null ? " (" + e.getCause().getMessage() + ")" : "");
+                          Toast.makeText(PlayerActivity.this, "Can't play this: " + err, Toast.LENGTH_LONG).show();
+                          done();
+                      }
+                      @Override public void onPlaybackStateChanged(int state) {
+                          if (state == Player.STATE_ENDED) done();
+                      }
+                  });
+                  view.setPlayer(player);
+                  view.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
+                  view.setKeepScreenOn(true);
+                  player.setMediaItem(MediaItem.fromUri(Uri.parse(url)), Math.max(0, start));
+                  player.prepare();
+                  player.setPlayWhenReady(true);
+              }
+
+              private void done() {
+                  if (finished) return;
+                  finished = true;
+                  Intent r = new Intent();
+                  r.putExtra("id", id);
+                  if (player != null) {
+                      r.putExtra("pos", player.getCurrentPosition());
+                      long d = player.getDuration();
+                      r.putExtra("dur", d == C.TIME_UNSET ? 0L : d);
+                  }
+                  if (err != null) r.putExtra("err", err);
+                  setResult(RESULT_OK, r);
+                  finish();
+              }
+
+              @Override
+              public boolean dispatchKeyEvent(KeyEvent e) {
+                  if (e.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+                      if (e.getAction() == KeyEvent.ACTION_UP) {
+                          if (view.isControllerFullyVisible()) view.hideController(); else done();
+                      }
+                      return true;
+                  }
+                  if (!view.isControllerFullyVisible() && e.getAction() == KeyEvent.ACTION_DOWN) {
+                      int k = e.getKeyCode();
+                      if (k == KeyEvent.KEYCODE_DPAD_RIGHT) { player.seekForward(); view.showController(); return true; }
+                      if (k == KeyEvent.KEYCODE_DPAD_LEFT) { player.seekBack(); view.showController(); return true; }
+                  }
+                  return view.dispatchKeyEvent(e) || super.dispatchKeyEvent(e);
+              }
+
+              @Override protected void onStop() { super.onStop(); if (player != null && !finished) player.pause(); }
+              @Override protected void onDestroy() { if (player != null) { player.release(); player = null; } super.onDestroy(); }
+              @Override public void onWindowFocusChanged(boolean f) {
+                  super.onWindowFocusChanged(f);
+                  if (f) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+              }
           }
           XEOF
           cp index.html app/src/main/assets/index.html

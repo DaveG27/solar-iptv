@@ -438,7 +438,7 @@ const S={
  mv:LS.get('mv',[402,103,501,302]),mvLayout:LS.get('mvl','2x2'),
  source:'demo',xtCreds:LS.get('xt',null),
 };
-function save(){LS.set('set',S.set);LS.set('profile',S.profile);LS.set('playlist',S.playlist);LS.set('rem',S.reminders);LS.set('cont',S.cont);LS.set('recent',S.recent);LS.set('mv',S.mv);LS.set('mvl',S.mvLayout)}
+function save(){LS.set('set',S.set);LS.set('profile',S.profile);LS.set('playlist',S.playlist);LS.set('rem',S.reminders);LS.set(S.source==='xt'?'contxt':'cont',S.cont);LS.set('recent',S.recent);LS.set('mv',S.mv);LS.set('mvl',S.mvLayout)}
 const PROF={main:{l:'Y',n:'You',c:'#7aa8ff'},guest:{l:'G',n:'Guest',c:'#5fe0a8'},kids:{l:'K',n:'Kids',c:'#ffd23f'}};
 
 /* ---------- content library (demo) ---------- */
@@ -569,6 +569,7 @@ function genDemo(){
  SERIES=st.map(([t,k],i)=>{const r=rng(hash(t));return reg(deco({kind:'series',id:'s'+i,title:t,genre:POOLS[k].g,pool:k,seasons:1+Math.floor(r()*5),eps:6+Math.floor(r()*5),desc:fillT(pick(r,DESC[k]),r),year:2020+Math.floor(r()*7)}))});
  ANCHOR=Math.floor(now()/(6*HR))*6*HR-12*HR;END=ANCHOR+48*HR;
  for(const d of CH_DEF){const ch=reg({kind:'channel',id:'c'+d[0],num:d[0],name:d[1],cat:d[2],hue:d[3],pools:d[4],epg:[]});let t=ANCHOR;while(t<END){const r=rng(hash(ch.num+':'+t));const p=makeProg(ch,pick(r,ch.pools),t,r);ch.epg.push(p);t=p.end}CHANNELS.push(ch)}
+ S.cont=LS.get('cont',null);
  if(!S.cont){S.cont={m3:.42,s2:.67,m11:.18,s9:.31,m15:.77};save()}
  regExtras();
 }
@@ -1151,7 +1152,9 @@ function openPlayer(){if(!P.open||P.pip){if(FOC&&$('#ui').contains(FOC))P.retFoc
 function addRecent(ch){S.recent=[ch.num,...S.recent.filter(n=>n!==ch.num)].slice(0,12);save()}
 function playChannel(ch,opt={}){if(!ch)return;if(SURF.open)surfClose(true);if(modalOn())closeModal(true);openPlayer();P.cur=ch;P.shift=opt.shift||0;P.browse=null;P.react=false;setScreen(P.sc,ch,false);addRecent(ch);if(S.set.ambient)setHue(ch.hue);hideOSD();flashOSD();
  const p=liveProg(ch);if(!opt.quiet&&!P.shift&&p&&p.ch.cat!=='news'&&p.ch.cat!=='music'){const m=(now()-p.start)/MIN;if(m>8&&m/((p.end-p.start)/MIN)<.8)setTimeout(()=>{if(P.cur===ch&&P.open&&!P.pip)toast(`Joined ${Math.round(m)} min in? Press OK → <b>Catch me up</b>`,'spark')},1500)}}
-function playVod(o){if(!o)return;if(modalOn())closeModal(true);openPlayer();P.cur=o;P.shift=0;P.browse=null;P.react=false;const dur=(o.mins||60)*60;P.vodPos=((S.cont&&S.cont[o.id])||0)*dur;setScreen(P.sc,o,false);if(o.url&&P.sc.video&&P.vodPos>5)P.sc.video.currentTime=P.vodPos;if(S.set.ambient&&o.hue!=null)setHue(o.hue);hideOSD();flashOSD();if(P.vodPos>5)toast(`Resuming from ${fmtClock(P.vodPos*1000)}`,'play')}
+function playVod(o){if(!o)return;
+ if(o.url&&window.Android&&Android.playNative){if(modalOn())closeModal(true);if(P.open&&!P.pip)closePlayer();const r=LS.get('resume',{});Android.playNative(o.url,o.kind==='ep'?`${o.parent.title} · ${o.se} · ${o.title}`:o.title,r[o.id]||0,o.id);return}
+ if(modalOn())closeModal(true);openPlayer();P.cur=o;P.shift=0;P.browse=null;P.react=false;const dur=(o.mins||60)*60;P.vodPos=((S.cont&&S.cont[o.id])||0)*dur;setScreen(P.sc,o,false);if(o.url&&P.sc.video&&P.vodPos>5)P.sc.video.currentTime=P.vodPos;if(S.set.ambient&&o.hue!=null)setHue(o.hue);hideOSD();flashOSD();if(P.vodPos>5)toast(`Resuming from ${fmtClock(P.vodPos*1000)}`,'play')}
 function closePlayer(){saveVod();P.open=false;P.pip=false;P.osd=false;$('#player').className='';$('#osd').classList.remove('show');if(P.sc)setScreen(P.sc,null);renderTop();restoreUIFocus()}
 function minimize(){if(!P.cur)return closePlayer();if(P.cur.kind!=='channel'||!S.set.pip)return closePlayer();P.pip=true;P.osd=false;P.browse=null;$('#osd').classList.remove('show');$('#player').className='on pip';renderTop();restoreUIFocus()}
 function restoreUIFocus(){if(modalOn())return;const f=P.retFoc&&P.retFoc.isConnected&&vis(P.retFoc)?P.retFoc:($('#view .f')||$('#top .nv.cur'));setFocus(f)}
@@ -1236,9 +1239,10 @@ function surfClose(silent){destroyScreen(SURF.sc);SURF.sc=null;SURF.open=false;$
 const MODAL={prevFoc:null,onClose:null};
 function openModal(html,opt={}){const m=$('#modal');if(!m.classList.contains('on'))MODAL.prevFoc=FOC;m.innerHTML=html;m.classList.add('on');MODAL.onClose=opt.onClose;setFocus((opt.focus&&$(opt.focus,m))||$('.mbtns .f,.bb-btns .f,.f',m))}
 function closeModal(silent){const m=$('#modal');m.classList.remove('on');$$('.scr',m).forEach(()=>{});m.innerHTML='';const cb=MODAL.onClose;MODAL.onClose=null;if(!silent){const pf=MODAL.prevFoc;if(pf&&pf.isConnected&&vis(pf))setFocus(pf);else if(P.open&&!P.pip&&P.osd){renderOSD();setFocus($('#osd .o-acts .f'))}else if(!P.open||P.pip)setFocus($('#view .f'))}cb&&cb()}
-function epsOf(s){const out=[];const r=rng(hash(s.title+'eps'));for(let i=1;i<=(s.eps||8);i++){const id=`${s.id}_e${i}`;out.push(REG[id]||reg({kind:'ep',id,parent:s,title:EPT[(i+Math.floor(r()*10))%EPT.length],se:`S1 E${i}`,hue:(s.hue+i*9)%360,motif:s.motif,font:s.font,genre:s.genre,mins:s.pool==='comedy'?30:50,desc:fillT(pick(r,DESC[s.pool]||DESC.generic),r),url:s.epUrls?s.epUrls[i-1]:null}))}return out}
+function epsOf(s){if(s.xt)return s.epList||[];const out=[];const r=rng(hash(s.title+'eps'));for(let i=1;i<=(s.eps||8);i++){const id=`${s.id}_e${i}`;out.push(REG[id]||reg({kind:'ep',id,parent:s,title:EPT[(i+Math.floor(r()*10))%EPT.length],se:`S1 E${i}`,hue:(s.hue+i*9)%360,motif:s.motif,font:s.font,genre:s.genre,mins:s.pool==='comedy'?30:50,desc:fillT(pick(r,DESC[s.pool]||DESC.generic),r),url:s.epUrls?s.epUrls[i-1]:null}))}return out}
 function openDetails(o){
- if(!o)return;const t=now();let btns=[],more=[],moreT='More like this';
+ if(!o)return;if(o.kind==='series'&&o.xt&&!o.epList){toast(`Loading episodes of ${esc(o.title)}…`,'tv');xtSeriesEps(o).then(()=>openDetails(o)).catch(e=>toast(`Couldn't load episodes — ${esc(e.message||e)}`,'close'));return}
+ const t=now();let btns=[],more=[],moreT='More like this';
  if(o.kind==='prog'){const live=isLive(o),past=o.end<=t;
   if(live)btns.push(btn('watchCh','play','Watch live',o.ch.id,'pri'),btn('cuStart','restart','From the start',o.id));
   else if(past)btns.push(btn('cuStart','restart','Watch from start',o.id,'pri'));
@@ -1248,7 +1252,7 @@ function openDetails(o){
   const other=[];for(const ch of CHANNELS)for(const p of ch.epg)if(p.title===o.title&&p!==o&&p.end>t)other.push(p);
   if(other.length){more=other.slice(0,12);moreT='Other airings'}else more=liveList(p=>p.genre===o.genre&&p!==o).slice(0,12)}
  else if(o.kind==='movie'){const c=S.cont?.[o.id];btns.push(btn('playVod','play',c?`Resume · ${Math.round(c*100)}%`:'Play',o.id,'pri'));if(c)btns.push(btn('playStart','restart','From the start',o.id));btns.push(btn('pl',inPl(o.id)?'check':'plus',inPl(o.id)?'In Playlist':'Add to Playlist',o.id));more=MOVIES.filter(m=>m!==o&&(m.genre===o.genre||m.moods.some(x=>o.moods.includes(x)))).slice(0,12)}
- else if(o.kind==='series'){const eps=epsOf(o);const c=S.cont?.[o.id];btns.push(btn('playVod','play',c?'Resume S1 E2':'Play S1 E1',(c?eps[1]:eps[0]).id,'pri'),btn('pl',inPl(o.id)?'check':'plus',inPl(o.id)?'In Playlist':'Add to Playlist',o.id));more=eps;moreT='Season 1'}
+ else if(o.kind==='series'){const eps=epsOf(o);const last=LS.get('lastEp',{})[o.id];const le=eps.find(e=>e.id===last);const first=le||eps[0];if(first)btns.push(btn('playVod','play',le?`Resume ${le.se}`:`Play ${first.se}`,first.id,'pri'));else btns.push(btn('closeModal','info','No episodes found'));btns.push(btn('pl',inPl(o.id)?'check':'plus',inPl(o.id)?'In Playlist':'Add to Playlist',o.id));more=eps;moreT=o.xt?`Episodes · ${eps.length}`:'Season 1'}
  else if(o.kind==='channel'){btns.push(btn('watchCh','play','Watch',o.id,'pri'));more=o.epg.filter(p=>p.end>t).slice(0,12);moreT='Coming up'}
  openModal(`<div class="dt"><div class="dt-art">${art(o,'bb')}</div><div class="dt-body"><div class="kick">${kickFor(o)}</div><div class="bb-title">${esc(o.title)}</div><div class="dt-desc">${esc(o.desc||'')}</div><div class="bb-btns">${btns.join('')}</div></div>${more.length?`<div class="dt-more rail"><h3>${moreT}</h3><div class="track">${more.map(m=>tile(m)).join('')}</div></div>`:''}<div class="mclose f" data-a="closeModal">${IC.close}</div></div>`,{focus:'.bb-btns .f'});
  if(S.set.ambient&&o.hue!=null)setHue(o.hue);
@@ -1285,7 +1289,7 @@ async function xtLoad(c){
  CHANNELS.sort((a,b)=>a.num-b.num);
  MOVIES=arr(vs).map(v=>reg(deco({kind:'movie',id:'m'+v.stream_id,title:v.name||'Movie',genre:vcn[v.category_id]||'Movies',year:v.year||'',mins:0,rating:v.rating?'★ '+v.rating:'',img:v.stream_icon||'',desc:'',url:`${base}/movie/${U}/${Pw}/${v.stream_id}.${v.container_extension||'mp4'}`})));
  SERIES=arr(ss).map(x=>reg(deco({kind:'series',id:'s'+x.series_id,sid:x.series_id,title:x.name||'Series',genre:scn[x.category_id]||'Box sets',img:x.cover||'',desc:x.plot||'',xt:true})));
- S.cont={};S.source='xt';regExtras();
+ S.source='xt';S.cont=LS.get('contxt',{});regExtras();
  return{ch:CHANNELS.length,mv:MOVIES.length,sr:SERIES.length};
 }
 function phProg(ch){return reg(deco({kind:'prog',id:'p'+ch.sid+'_ph',ch,title:ch.name,start:ANCHOR,end:END,genre:CATS[ch.cat],pool:'',desc:'Guide information is loading…',hue:ch.hue},'x'))}
@@ -1294,7 +1298,10 @@ function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++
 let epgT;function epgRefresh(){clearTimeout(epgT);epgT=setTimeout(()=>{if(S.view==='guide'&&!modalOn()){const r=FOC&&FOC.classList.contains('gc')?+FOC.dataset.r:null;const gx=G.gx,gy=G.gy;guideRows();G.gx=gx;G.gy=gy;applyG();if(r!=null){const c=cellAt(r,G.time);if(c)setFocus(c)}}},500)}
 function xtRails(){const r=[];r.push(rail('Continue watching',contItems().map(([o,v])=>tile(o,{prog:v}))));const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched',rc.map(c=>tile(c))));r.push(rail(`Solar superpowers`,POWERS.filter(p=>!['pw_catch','pw_spoil'].includes(p.id)).map(powerTile)));
  XT.cats.slice(0,6).forEach(c=>r.push(rail(esc(c.name),CHANNELS.filter(x=>x.xcat===c.id).slice(0,20).map(x=>tile(x)))));r.push(rail('Movies',MOVIES.slice(0,30).slice(0,RAIL_MAX).map(m=>poster(m))));r.push(rail('Box sets',SERIES.slice(0,30).slice(0,RAIL_MAX).map(s=>poster(s))));return r.filter(Boolean)}
-async function xtSeriesEps(s){if(s.epsLoaded||!XT.get)return;try{const j=await XT.get(XT.api(`get_series_info&series_id=${s.sid}`));const seasons=j&&j.episodes||{};const first=Object.keys(seasons).sort((a,b)=>a-b)[0];const list=seasons[first]||[];s.eps=list.length;s.epUrls=list.map(e=>`${XT.base}/series/${encodeURIComponent(XT.user)}/${encodeURIComponent(XT.pass)}/${e.id}.${e.container_extension||'mp4'}`);s.epTitles=list.map(e=>e.title);s.epsLoaded=true;Object.keys(REG).filter(k=>k.startsWith(s.id+'_e')).forEach(k=>delete REG[k]);epsOf(s).forEach((e,i)=>{if(s.epTitles[i])e.title=s.epTitles[i]})}catch(e){}}
+async function xtSeriesEps(s){if(s.epList)return s.epList;const j=await XT.get(XT.api(`get_series_info&series_id=${s.sid}`));let seasons=(j&&j.episodes)||{};if(Array.isArray(seasons)){const o={};seasons.forEach((l,i)=>{if(Array.isArray(l)&&l.length)o[l[0].season||i+1]=l});seasons=o}
+ const U=encodeURIComponent(XT.user),Pw=encodeURIComponent(XT.pass),out=[];
+ Object.keys(seasons).sort((a,b)=>a-b).forEach(sn=>(seasons[sn]||[]).forEach((e,i)=>{const n=e.episode_num||i+1,inf=e.info||{};out.push(reg({kind:'ep',id:`${s.id}_e${e.id}`,parent:s,title:e.title||`Episode ${n}`,se:`S${sn} E${n}`,hue:(s.hue+out.length*9)%360,motif:s.motif,font:s.font,genre:s.genre,mins:Math.round((+inf.duration_secs||0)/60),desc:inf.plot||s.desc||'',img:inf.movie_image||s.img||'',url:`${XT.base}/series/${U}/${Pw}/${e.id}.${e.container_extension||'mp4'}`}))}));
+ if(j&&j.info&&!s.desc)s.desc=j.info.plot||'';s.epList=out;s.eps=out.length;s.seasons=Object.keys(seasons).length;return out}
 
 /* frame mode */
 let frameOn=false,lastAct=now();
@@ -1312,7 +1319,7 @@ const ACT={
  open:el=>openItem(REG[el.dataset.id]),
  bbAct:el=>{const o=BB.o;if(!o)return;const x=el.dataset.x;if(x==='info'){if(o.kind==='power'||o.kind==='mood')return openItem(o);return openDetails(o)}if(x==='pl'){const k=o.kind==='prog'?progKey(o):o.id;togglePl(k);bbSet(o,true);return}
   if(o.kind==='prog'){if(isLive(o))return playChannel(o.ch);if(o.end<=now())return playChannel(o.ch,{shift:now()-o.start});toggleRem(o.id);return bbSet(o,true)}
-  if(o.kind==='movie')return playVod(o);if(o.kind==='series'){const e=epsOf(o);return playVod(S.cont?.[o.id]?e[1]:e[0])}openItem(o)},
+  if(o.kind==='movie')return playVod(o);if(o.kind==='series'){if(o.xt)return openDetails(o);const e=epsOf(o);return playVod(S.cont?.[o.id]?e[1]:e[0])}openItem(o)},
  gcell:el=>{const p=REG[el.dataset.id];if(!p)return;if(isLive(p))playChannel(p.ch);else if(p.end<=now())openDetails(p);else openDetails(p)},
  gtab:el=>{G.cat=el.dataset.x;$$('#gtabs .tab').forEach(t=>t.classList.toggle('sel',t===el));G.time=now();guideRows()},
  tmslot:()=>{const c=$('#tmgrid .f');if(c)setFocus(c)},
@@ -1343,7 +1350,7 @@ const ACT={
  remind:el=>{toggleRem(el.dataset.x);const on=isRem(el.dataset.x);el.innerHTML=(on?IC.check:IC.bell)+`<span>${on?'Reminder set':'Remind me'}</span>`},
  pl:el=>{togglePl(el.dataset.x);const on=inPl(el.dataset.x);el.innerHTML=(on?IC.check:IC.plus)+`<span>${on?'In Playlist':'Add to Playlist'}</span>`},
  reveal:el=>{REVEAL.add(el.dataset.x);refreshScores();const p=REG[el.dataset.x];el.innerHTML=IC.shield+`<span>${esc(matchLine(p))}</span>`},
- playVod:async el=>{const o=REG[el.dataset.x];if(o&&o.kind==='series')return;if(o&&o.kind==='ep'&&o.parent.xt){await xtSeriesEps(o.parent);const e=epsOf(o.parent)[0];return playVod(e)}playVod(o)},
+ playVod:el=>{const o=REG[el.dataset.x];if(!o||o.kind==='series')return;playVod(o)},
  playStart:el=>{const o=REG[el.dataset.x];if(S.cont)delete S.cont[o.id];playVod(o)},
  pback:()=>playerKey('back'),
  pipExpand:()=>pipExpand(),pipClose:()=>pipClose(),
@@ -1365,6 +1372,9 @@ const ACT={
  spoiler:el=>{const p=curProg();if(!p)return;if(spoil(p)){REVEAL.add(p.id);if(!S.set.spoiler)REVEAL.add(p.id)}else{S.set.spoiler=true;REVEAL.delete(p.id);save()}refreshScores();renderOSD();setFocus($('#osd [data-a="spoiler"]'))},
  info:()=>{const p=curProg();openDetails(p||(P.cur.parent||P.cur))},
 };
+window.nativeDone=(id,pos,dur,err)=>{const o=REG[id];if(err)toast(`Couldn't play that — ${esc(err)}`,'close');if(!o||!(dur>0))return;const f=pos/dur,r=LS.get('resume',{}),key=o.kind==='ep'?o.parent.id:o.id;S.cont=S.cont||{};
+ if(f>.95){delete r[o.id];if(o.kind!=='ep')delete S.cont[key]}else if(f>.01){r[o.id]=pos;S.cont[key]=Math.round(f*100)/100}
+ if(o.kind==='ep'){const le=LS.get('lastEp',{});le[o.parent.id]=o.id;LS.set('lastEp',le)}LS.set('resume',r);save()};
 function genDemoIfDemo(){if(S.source==='demo')genDemo()}
 function togglePl(k){if(inPl(k)){S.playlist=S.playlist.filter(x=>x!==k);toast('Removed from Playlist','close')}else{S.playlist.unshift(k);toast(k.startsWith('T:')?`Added — Smart Playlist will find every airing of <b>${esc(k.slice(2))}</b>`:'Added to your Playlist','check')}save()}
 function toggleRem(id){const p=REG[id];if(isRem(id)){S.reminders=S.reminders.filter(x=>x!==id);toast('Reminder removed','close')}else{S.reminders.push(id);toast(`We'll remind you at ${fmtT(p.start)} · ${esc(p.title)}`,'bell')}save()}
