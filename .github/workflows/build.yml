@@ -157,6 +157,51 @@ jobs:
                   public void exit() {
                       runOnUiThread(new Runnable() { public void run() { finish(); } });
                   }
+
+                  /** GET a URL natively (follows redirects, ignores CORS) and hand the result back to JS. */
+                  @JavascriptInterface
+                  public void httpGet(final String id, final String url) {
+                      new Thread(new Runnable() { public void run() {
+                          int code = 0;
+                          String body = "";
+                          String err = "";
+                          java.net.HttpURLConnection c = null;
+                          try {
+                              String cur = url;
+                              for (int hop = 0; hop < 6; hop++) {
+                                  c = (java.net.HttpURLConnection) new java.net.URL(cur).openConnection();
+                                  c.setInstanceFollowRedirects(false);
+                                  c.setConnectTimeout(15000);
+                                  c.setReadTimeout(45000);
+                                  c.setRequestProperty("User-Agent", "okhttp/4.9.3");
+                                  code = c.getResponseCode();
+                                  String loc = c.getHeaderField("Location");
+                                  if (code >= 300 && code < 400 && loc != null) {
+                                      cur = new java.net.URL(new java.net.URL(cur), loc).toString();
+                                      c.disconnect();
+                                      continue;
+                                  }
+                                  break;
+                              }
+                              java.io.InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+                              if (in != null) {
+                                  java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                                  byte[] buf = new byte[65536];
+                                  int n;
+                                  while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                                  in.close();
+                                  body = new String(out.toByteArray(), "UTF-8");
+                              }
+                          } catch (Exception e) {
+                              err = e.getClass().getSimpleName() + (e.getMessage() == null ? "" : ": " + e.getMessage());
+                          } finally {
+                              if (c != null) c.disconnect();
+                          }
+                          final String js = "window.__httpDone&&__httpDone(" + org.json.JSONObject.quote(id) + "," + code + ","
+                                  + org.json.JSONObject.quote(body) + "," + org.json.JSONObject.quote(err) + ")";
+                          runOnUiThread(new Runnable() { public void run() { web.evaluateJavascript(js, null); } });
+                      }}).start();
+                  }
               }
 
               private void sendKey(String k) {

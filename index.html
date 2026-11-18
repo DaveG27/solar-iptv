@@ -361,6 +361,11 @@ nav{display:flex;gap:2px}
  <div id="chentry"></div>
 </div>
 <script>
+// In the app, requests go through Android (no browser CORS rules); in a browser, plain fetch.
+const __hcb={};let __hid=0;
+window.__httpDone=(id,status,text,err)=>{const c=__hcb[id];if(!c)return;delete __hcb[id];err?c.rej(new Error(err)):c.res({status,text})};
+function httpGet(url){if(window.Android&&Android.httpGet)return new Promise((res,rej)=>{const id='h'+(++__hid);__hcb[id]={res,rej};Android.httpGet(id,url)});return fetch(url).then(async r=>({status:r.status,text:await r.text()}))}
+
 'use strict';
 /* =========================================================
    SOLAR IPTV — a Sky-Glass-style IPTV front end, on steroids
@@ -1264,7 +1269,7 @@ async function xtLoad(c){
  const base=c.server.trim().replace(/\/+$/,'');if(!/^https?:\/\//i.test(base))throw new Error('Server URL must start with http:// or https://');
  const U=encodeURIComponent(c.user),Pw=encodeURIComponent(c.pass);
  const api=a=>`${base}/player_api.php?username=${U}&password=${Pw}${a?'&action='+a:''}`;
- const get=async u=>{const url=c.proxy?c.proxy+encodeURIComponent(u):u;let r;try{r=await fetch(url)}catch(e){throw new Error('Could not reach the server — the network or this page\'s security rules blocked it.')}const tx=await r.text();try{return JSON.parse(tx)}catch(e){throw new Error(`Server replied ${r.status}: ${tx.slice(0,70)}`)}};
+ const get=async u=>{const url=c.proxy?c.proxy+encodeURIComponent(u):u;let r;try{r=await httpGet(url)}catch(e){throw new Error('Could not reach the server ('+(e.message||'network error')+'). Check the server URL and that the box is online.')}const tx=r.text;try{return JSON.parse(tx)}catch(e){throw new Error(`Server replied ${r.status}: ${tx.slice(0,70)}`)}};
  const info=await get(api(''));if(!info||!info.user_info||String(info.user_info.auth)!=='1')throw new Error('Login rejected — check the username and password.');
  const [lc,ls,vc,vs,scat,ss]=await Promise.all(['get_live_categories','get_live_streams','get_vod_categories','get_vod_streams','get_series_categories','get_series'].map(a=>get(api(a)).catch(()=>[])));
  const arr=x=>Array.isArray(x)?x:[];const lcn={},vcn={},scn={};arr(lc).forEach(x=>lcn[x.category_id]=x.category_name);arr(vc).forEach(x=>vcn[x.category_id]=x.category_name);arr(scat).forEach(x=>scn[x.category_id]=x.category_name);
