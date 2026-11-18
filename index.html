@@ -731,7 +731,20 @@ const DIRS={up:1,down:1,left:1,right:1};
 function vis(e){return e.offsetParent!==null||e.getClientRects().length>0}
 function setFocus(el){if(!el)return;if(FOC&&FOC!==el)FOC.classList.remove('foc');FOC=el;el.classList.add('foc');afterFocus(el)}
 function scopeEl(){if($('#modal').classList.contains('on'))return $('#modal');if(SURF.open)return $('#surf');if(P.open&&!P.pip)return $('#osd');return $('#ui')}
+function moveFast(dir){
+ if(!FOC||modalOn()||!$('#view').contains(FOC))return false;
+ const tr=FOC.closest('.track');if(!tr)return false;
+ if(dir==='left'||dir==='right'){const L=$$('.f',tr);const i=L.indexOf(FOC);if(i<0)return false;
+  if(dir==='right'&&i===L.length-1){railFill(tr);const L2=$$('.f',tr);if(L2.length>L.length){setFocus(L2[i+1]);return true}return true}
+  const nx=L[i+(dir==='right'?1:-1)];if(nx){setFocus(nx);return true}return dir==='right'}
+ const rl=tr.closest('.rail');if(!rl)return false;
+ let n=dir==='down'?rl.nextElementSibling:rl.previousElementSibling;while(n&&!n.querySelector('.f'))n=dir==='down'?n.nextElementSibling:n.previousElementSibling;
+ if(!n||!n.classList.contains('rail'))return false;
+ const r=FOC.getBoundingClientRect(),cx=r.left+r.width/2;let best=null,bd=1e12;
+ for(const c of $$('.f',n)){const q=c.getBoundingClientRect();if(!q.width)continue;const d=Math.abs(q.left+q.width/2-cx);if(d<bd){bd=d;best=c}}
+ if(best){setFocus(best);return true}return false}
 function move(dir){
+ if(moveFast(dir))return;
  const root=scopeEl();const cs=$$('.f',root).filter(vis);if(!cs.length)return;
  if(!FOC||!root.contains(FOC)||!vis(FOC)){setFocus(cs[0]);return}
  if(dir==='down'&&$('#top').contains(FOC)){enterView();return}
@@ -750,7 +763,8 @@ function move(dir){
   const sc=Math.max(0,p)+s;if(sc<bs){bs=sc;best=c}}
  if(best){if(best.closest('#top')&&!$('#top').contains(FOC)){best=$('#top .nv.cur')||$('#top .nvs')||best}setFocus(best)}
 }
-function enterView(){const v=$('#view');const m=MEM[S.view];const list=$$('.f',v).filter(vis);let el=m!=null?list[m]:null;if(!el)el=V[S.view]?.first?.()||list[0];if(el)setFocus(el)}
+const MEMEL={};let memT;
+function enterView(){const v=$('#view');const me=MEMEL[S.view];if(me&&me.isConnected&&v.contains(me)&&vis(me)){setFocus(me);return}const m=MEM[S.view];const list=$$('.f',v).filter(vis);let el=m!=null?list[m]:null;if(!el)el=V[S.view]?.first?.()||list[0];if(el)setFocus(el)}
 function afterFocus(el){
  const tr=el.closest('.track');if(tr){railFill(tr);const ref=el.closest('.t10')||el;tr.scrollTo({left:Math.max(0,ref.offsetLeft-90),behavior:'smooth'})}
  const rin=el.closest('.rails-in');if(rin){rin.style.transform=`translateY(${-el.closest('.rail').offsetTop}px)`}else if(el.closest('.bb')){const r2=$('#view .rails-in');if(r2)r2.style.transform='translateY(0)'}
@@ -758,7 +772,7 @@ function afterFocus(el){
  const o=REG[el.dataset.id];
  if(o){if(S.set.ambient&&o.hue!=null)setHue(o.hue);if($('#view').contains(el)&&$('#view .bb')&&!el.closest('.bb'))bbSchedule(o)}
  if(el.classList.contains('nv')||el.classList.contains('nvs'))navHover(el);else clearTimeout(navT);
- if($('#view').contains(el)){MEM[S.view]=$$('#view .f').indexOf(el);V[S.view]?.onFocus?.(el)}
+ if($('#view').contains(el)){const vw=S.view;MEMEL[vw]=el;clearTimeout(memT);memT=setTimeout(()=>{if(el.isConnected)MEM[vw]=$$('#view .f').filter(vis).indexOf(el)},400);V[S.view]?.onFocus?.(el)}
 }
 function vsScroll(vs,el){const inner=vs.firstElementChild;let y=+inner.dataset.y||0;let top=0,n=el;while(n&&n!==inner){top+=n.offsetTop;n=n.offsetParent}const H=vs.clientHeight,h=el.offsetHeight;if(top-y<24)y=Math.max(0,top-24);else if(top+h-y>H-30)y=top+h-H+40;inner.dataset.y=y;inner.style.transform=`translateY(${-y}px)`}
 let hueT;function setHue(h){clearTimeout(hueT);const f=()=>$('#stage').style.setProperty('--h',Math.round(h));if(TVBOX)hueT=setTimeout(f,450);else f()}
@@ -795,7 +809,7 @@ function go(view,params={}){
 /* ---------- billboard ---------- */
 const BB={o:null,layer:0,T:null,liveT:null,sc:null,spot:[],si:0,last:0};
 const bbHTML=()=>`<div class="bb"><div class="bb-art" id="bba0"></div><div class="bb-art" id="bba1" style="opacity:0"></div><div class="bb-live scr" id="bbl"></div><div class="bb-txt" id="bbt"></div></div>`;
-function bbSchedule(o){clearTimeout(BB.T);BB.T=setTimeout(()=>bbSet(o),140)}
+function bbSchedule(o){clearTimeout(BB.T);BB.T=setTimeout(()=>bbSet(o),TVBOX?320:140)}
 function kickFor(o){
  const t=now(),k=[];
  if(o.kind==='prog'){k.push(isLive(o)?'<span class="pill live">LIVE</span>':o.end<=t?'<span class="pill cu">CATCH UP</span>':`<span class="pill">${dayLbl(o.start)} ${fmtT(o.start)}</span>`);k.push(`${o.ch.num} ${esc(o.ch.name)}`,esc(o.genre));if(o.se)k.push(o.se);if(o.match)k.push(`<span data-mline="${o.id}">${esc(matchLine(o))}</span>`)}
@@ -1523,8 +1537,11 @@ document.addEventListener('keydown',e=>{
  const searching=S.view==='search'&&!modalOn()&&!(P.open&&!P.pip)&&!SURF.open;
  if(searching&&e.key.length===1&&/[a-z0-9 ]/i.test(e.key)&&!e.ctrlKey&&!e.metaKey){e.preventDefault();searchType(e.key===' '?'SPACE':e.key);return}
  if(searching&&e.key==='Backspace'&&Q.q.length){e.preventDefault();searchType('DEL');return}
- const k=keyName(e);if(!k)return;e.preventDefault();handle(k);
+ const k=keyName(e);if(!k)return;e.preventDefault();
+ if(k==='up'||k==='down'||k==='left'||k==='right'){if(KPEND){KPEND=k;return}KPEND=k;requestAnimationFrame(()=>{const kk=KPEND;KPEND=null;handle(kk)});return}
+ handle(k);
 });
+let KPEND=null;
 function handle(k){
  if(k[0]==='d'&&k.length===2)return digit(k[1]);
  if(k==='guide'){if(frameOn)frameOff();if(SURF.open)surfClose(true);if(modalOn())closeModal(true);if(P.open&&!P.pip)minimize();return go('guide')}
