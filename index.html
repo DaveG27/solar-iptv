@@ -368,6 +368,12 @@ nav{display:flex;gap:2px}
 .tvbox .gc{transition:none}
 .o-tech{display:inline-flex;gap:8px;margin-left:14px;vertical-align:middle}
 .o-tech b{font-size:15px;font-weight:800;letter-spacing:.02em;padding:3px 9px;border-radius:6px;background:#ffffff1f;border:1px solid #ffffff3d;color:#fff}
+.plist{display:flex;flex-direction:column;gap:12px;margin:22px 0 8px;max-height:520px;overflow:auto}
+.prow{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:18px;background:#ffffff10;border:1px solid #ffffff14}
+.prow.on{background:#ffffff1c;border-color:#ffffff40}
+.prow .pinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.prow .pinfo b{font-size:24px;font-weight:800}
+.prow .pinfo span{font-size:17px;color:#ffffffa0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -416,6 +422,8 @@ const IC={
  search:sv('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/>'),
  play:sv('<path d="M7 4.6v14.8a1 1 0 0 0 1.5.87l12.4-7.4a1 1 0 0 0 0-1.73L8.5 3.73A1 1 0 0 0 7 4.6z"/>',1),
  plus:sv('<path d="M12 5v14M5 12h14"/>'),
+ edit:sv('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'),
+ trash:sv('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
  check:sv('<path d="m5 12.5 4.5 4.5L19 7.5"/>'),
  info:sv('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.6v.01"/>'),
  bell:sv('<path d="M6 16v-5a6 6 0 1 1 12 0v5l1.6 2H4.4z"/><path d="M10 20.6a2 2 0 0 0 4 0"/>'),
@@ -456,7 +464,7 @@ const S={
  mv:LS.get('mv',[402,103,501,302]),mvLayout:LS.get('mvl','2x2'),
  source:'demo',xtCreds:LS.get('xt',null),
 };
-function save(){LS.set('set',S.set);LS.set('profile',S.profile);LS.set('playlist',S.playlist);LS.set('rem',S.reminders);LS.set(S.source==='xt'?'contxt':'cont',S.cont);LS.set('recent',S.recent);LS.set('mv',S.mv);LS.set('mvl',S.mvLayout)}
+function save(){LS.set('set',S.set);LS.set('profile',S.profile);LS.set('playlist',S.playlist);LS.set('rem',S.reminders);LS.set(S.source==='xt'?xtContKey():'cont',S.cont);LS.set('recent',S.recent);LS.set('mv',S.mv);LS.set('mvl',S.mvLayout)}
 const PROF={main:{l:'Y',n:'You',c:'#7aa8ff'},guest:{l:'G',n:'Guest',c:'#5fe0a8'},kids:{l:'K',n:'Kids',c:'#ffd23f'}};
 
 /* ---------- content library (demo) ---------- */
@@ -1042,7 +1050,7 @@ const SETROWS=[
  ['pip','Picture-in-Picture on Back',()=>S.set.pip,'Press Back while watching live TV and it shrinks into the corner so you can browse without missing anything.'],
  ['autoSurf','Auto-surf speed',()=>S.set.autoSurf+' sec','How long Channel Surf lingers on each channel when you lean back and let it flick for you.'],
  ['frame','Start Frame Mode',()=>'','Turn the TV into ambient art with a clock and glanceable info. It also starts by itself after 3 minutes idle.'],
- ['source','TV provider',()=>S.source==='xt'?'Connected':'Demo content','Connect an Xtream Codes login (server, username, password). The demo channels are generated so you can try every feature without a provider.'],
+ ['source','TV providers',()=>S.source==='xt'&&S.xtCreds?provName(S.xtCreds)+(getProvs().length>1?` · ${getProvs().length} saved`:''):'Demo content','Connect an Xtream Codes login (server, username, password). The demo channels are generated so you can try every feature without a provider.'],
  ['reset','Reset demo data',()=>'','Clears your playlist, reminders, recently watched and settings on this device.'],
 ];
 V.settings={
@@ -1309,11 +1317,29 @@ function openPin(target){PIN='';openModal(`<div class="mcard" style="width:620px
 function setProfile(k){S.profile=k;save();closeModal(true);go('home');toast(`Switched to ${PROF[k].n}`,'smile')}
 
 /* provider login */
-function openLogin(){const c=S.xtCreds||{};openModal(`<div class="mcard" style="width:1000px"><div class="kick"><span class="pill">${IC.tv} TV PROVIDER</span></div><h2>Connect your Xtream login</h2><p class="mut">Live channels, guide, movies and box sets load from your provider. Leave the proxy blank unless your provider blocks browsers.</p>
+/* ---------- several providers: saved list, switch one at a time ---------- */
+function xtContKey(){return XT.pid?'contxt_'+XT.pid:'contxt'}
+function provHost(c){try{return new URL(c.server.trim()).host}catch(e){return c.server||''}}
+function provName(c){return (c.name||'').trim()||provHost(c)||'Provider'}
+function getProvs(){let L=LS.get('provs',null);if(!L){L=[];const c=S.xtCreds;if(c&&c.server)L.push({...c,id:c.id||'p'+Date.now().toString(36)});LS.set('provs',L);if(L[0]){S.xtCreds=L[0];LS.set('xt',L[0])}}return L}
+function setProvs(L){LS.set('provs',L)}
+function activeProvId(){return S.source==='xt'&&S.xtCreds?S.xtCreds.id:null}
+function openLogin(){const L=getProvs();if(!L.length)return openProvForm(null);
+ const act=activeProvId();
+ const rows=L.map(c=>`<div class="prow${c.id===act?' on':''}"><div class="pinfo"><b>${esc(provName(c))}</b><span>${esc(provHost(c))}${c.user?' · '+esc(c.user):''}</span></div>${c.id===act?'<span class="pill live">IN USE</span>':''}
+  ${btn('provUse','play',c.id===act?'Reload':'Switch',c.id,c.id===act?'':'pri')}${btn('provEdit','edit','Edit',c.id)}${btn('provDel','trash','Remove',c.id)}</div>`).join('');
+ openModal(`<div class="mcard" style="width:1100px"><div class="kick"><span class="pill">${IC.tv} TV PROVIDERS</span></div><h2>Your providers</h2><p class="mut">Save as many Xtream logins as you like and switch between them. Each keeps its own Continue watching.</p>
+ <div class="plist">${rows}</div><div class="mbtns">${btn('provAdd','plus','Add provider',null,L.length?'':'pri')}${btn('xtDemo','spark','Use demo channels')}</div><div class="xmsg" id="xmsg"></div></div>`,{focus:'.prow.on .btn, .prow .btn'})}
+async function useProv(c,msgEl){const m=msgEl||$('#xmsg');if(m){m.className='xmsg';m.textContent=`Connecting to ${provName(c)}…`}
+ try{const r=await xtLoad(c);S.xtCreds=c;LS.set('xt',c);if(m){m.className='xmsg ok';m.textContent=`Connected to ${provName(c)} — ${r.ch} channels, ${r.mv} movies, ${r.sr} box sets.`}setTimeout(()=>{closeModal(true);go('home');toast(`${esc(provName(c))} · ${r.ch} channels`,'check')},700)}
+ catch(e){if(m){m.className='xmsg';m.textContent=e.message}}}
+function openProvForm(id){const c=(id&&getProvs().find(x=>x.id===id))||{};openModal(`<div class="mcard" style="width:1000px"><div class="kick"><span class="pill">${IC.tv} TV PROVIDER</span></div><h2>${id?'Edit provider':'Add a provider'}</h2>
+ <label class="inpw">Name (optional)<input class="inp f" data-a="inp" id="xn" placeholder="e.g. Gorilla, Mutiny" value="${esc(c.name||'')}"></label>
+ <input type="hidden" id="xid" value="${esc(id||'')}">
  <label class="inpw">Server URL<input class="inp f" data-a="inp" id="xs" placeholder="http://yourserver.com:8080" value="${esc(c.server||'')}"></label>
  <div style="display:flex;gap:20px"><label class="inpw" style="flex:1">Username<input class="inp f" data-a="inp" id="xu" value="${esc(c.user||'')}" autocomplete="off"></label><label class="inpw" style="flex:1">Password<input class="inp f" data-a="inp" id="xp" type="password" value="${esc(c.pass||'')}"></label></div>
  <label class="inpw">Proxy prefix (optional)<input class="inp f" data-a="inp" id="xx" placeholder="https://your-app.vercel.app/api/proxy?url=" value="${esc(c.proxy||'')}"></label>
- <div class="mbtns">${btn('xtGo','play','Connect',null,'pri')}${btn('xtDemo','spark','Use demo channels')}</div><div class="xmsg" id="xmsg"></div></div>`,{focus:'#xs'})}
+ <div class="mbtns">${btn('xtGo','play','Save & connect',null,'pri')}${getProvs().length?btn('provList','back','Back to providers'):btn('xtDemo','spark','Use demo channels')}</div><div class="xmsg" id="xmsg"></div></div>`,{focus:id?'#xs':'#xn'})}
 let XT={cats:[]};
 const b64=s=>{try{return decodeURIComponent(escape(atob(s||'')))}catch(e){return s||''}};
 function guessCat(s){s=s.toLowerCase();if(/sport|football|soccer|bein|dazn|tnt sp|espn|nba|nfl|f1|golf|cricket|boxing|ppv/.test(s))return'sport';if(/movie|cinema|film|vod|premiere/.test(s))return'movie';if(/news|cnn|bbc news|sky news|gb news|bloomberg/.test(s))return'news';if(/kid|cartoon|disney|nick|junior|cbeebies|baby/.test(s))return'kids';if(/doc|discovery|history|nat geo|natgeo|animal|science|wild/.test(s))return'docs';if(/music|mtv|radio|hits|kiss|vevo/.test(s))return'music';return'ent'}
@@ -1332,7 +1358,7 @@ async function xtLoad(c){
  CHANNELS.sort((a,b)=>a.num-b.num);
  MOVIES=arr(vs).map(v=>reg(deco({kind:'movie',id:'m'+v.stream_id,title:v.name||'Movie',genre:vcn[v.category_id]||'Movies',year:v.year||'',mins:0,rating:v.rating?'★ '+v.rating:'',img:v.stream_icon||'',desc:'',url:`${base}/movie/${U}/${Pw}/${v.stream_id}.${v.container_extension||'mp4'}`})));
  SERIES=arr(ss).map(x=>reg(deco({kind:'series',id:'s'+x.series_id,sid:x.series_id,title:x.name||'Series',genre:scn[x.category_id]||'Box sets',img:x.cover||'',desc:x.plot||'',xt:true})));
- S.source='xt';S.cont=LS.get('contxt',{});regExtras();
+ S.source='xt';XT.pid=c.id||'';S.cont=LS.get(xtContKey(),{});regExtras();
  return{ch:CHANNELS.length,mv:MOVIES.length,sr:SERIES.length};
 }
 function phProg(ch){return reg(deco({kind:'prog',id:'p'+ch.sid+'_ph',ch,title:ch.name,ph:1,start:ANCHOR,end:END,genre:CATS[ch.cat],pool:'',desc:'Guide information is loading…',hue:ch.hue},'x'))}
@@ -1384,9 +1410,15 @@ const ACT={
  prof:el=>{const k=el.dataset.x;if(k===S.profile)return closeModal();if(S.profile==='kids')return openPin(k);setProfile(k)},
  pin:el=>{const n=el.dataset.x;if(n==='⌫')PIN=PIN.slice(0,-1);else PIN+=n;$$('#pins i').forEach((d,i)=>d.classList.toggle('on',i<PIN.length));if(PIN.length===4){if(PIN==='1234')setProfile(el.dataset.t);else{PIN='';$$('#pins i').forEach(d=>d.classList.remove('on'));toast('Wrong PIN','close')}}},
  inp:el=>{el.focus();try{el.setSelectionRange(el.value.length,el.value.length)}catch(e){}},
- xtGo:async()=>{const c={server:$('#xs').value,user:$('#xu').value,pass:$('#xp').value,proxy:$('#xx').value.trim()};const m=$('#xmsg');m.className='xmsg';m.textContent='Connecting…';
-  try{const r=await xtLoad(c);S.xtCreds=c;LS.set('xt',c);m.className='xmsg ok';m.textContent=`Connected — ${r.ch} channels, ${r.mv} movies, ${r.sr} box sets.`;setTimeout(()=>{closeModal(true);go('home');toast(`Provider connected · ${r.ch} channels`,'check')},700)}
+ xtGo:async()=>{const id=$('#xid').value;const c={id:id||'p'+Date.now().toString(36),name:$('#xn').value.trim(),server:$('#xs').value.trim(),user:$('#xu').value.trim(),pass:$('#xp').value,proxy:$('#xx').value.trim()};const m=$('#xmsg');m.className='xmsg';m.textContent='Connecting…';
+  try{const r=await xtLoad(c);const L=getProvs();const i=L.findIndex(x=>x.id===c.id);if(i>=0)L[i]=c;else L.push(c);setProvs(L);S.xtCreds=c;LS.set('xt',c);m.className='xmsg ok';m.textContent=`Connected — ${r.ch} channels, ${r.mv} movies, ${r.sr} box sets.`;setTimeout(()=>{closeModal(true);go('home');toast(`${esc(provName(c))} · ${r.ch} channels`,'check')},700)}
   catch(e){m.className='xmsg';m.innerHTML=esc(e.message)+(location.hostname.includes('claude')||window.top!==window?'<br><span style="color:#ffffffa0">Note: the Claude preview blocks connections to outside servers. Host this file yourself (e.g. on Vercel) to connect a real provider.</span>':'')}},
+ provUse:el=>{const c=getProvs().find(x=>x.id===el.dataset.x);if(c)useProv(c)},
+ provEdit:el=>openProvForm(el.dataset.x),
+ provAdd:()=>openProvForm(null),
+ provList:()=>openLogin(),
+ provDel:el=>{const id=el.dataset.x;const L=getProvs();const c=L.find(x=>x.id===id);if(!c)return;if(el.dataset.sure!=='1'){el.dataset.sure='1';el.querySelector('span').textContent='Sure? OK again';return}
+  setProvs(L.filter(x=>x.id!==id));try{localStorage.removeItem('solar_contxt_'+id)}catch(e){}if(activeProvId()===id){S.xtCreds=null;LS.set('xt',null)}toast(`Removed ${esc(provName(c))}`,'close');openLogin()},
  xtDemo:()=>{S.source='demo';genDemo();closeModal(true);go('home');toast('Using demo channels','spark')},
  closeModal:()=>closeModal(),
  appExit:()=>{try{window.Android.exit()}catch(e){}},
@@ -1482,7 +1514,7 @@ addEventListener('resize',fit);fit();
 try{if(window.top===window){history.pushState({n:1},'');addEventListener('popstate',()=>{handle('back');history.pushState({n:1},'')})}}catch(e){}
 genDemo();
 go('home');
-if(S.xtCreds&&S.xtCreds.server){toast('Connecting to your provider…','tv');xtLoad(S.xtCreds).then(r=>{go('home');toast(`Provider connected · ${r.ch} channels`,'check')}).catch(e=>{S.source='demo';genDemo();go('home');toast('Couldn\'t reach your provider — showing demo channels. Settings → TV provider to retry.','close')})}
+getProvs();if(S.xtCreds&&S.xtCreds.server){toast(`Connecting to ${esc(provName(S.xtCreds))}…`,'tv');xtLoad(S.xtCreds).then(r=>{go('home');toast(`Provider connected · ${r.ch} channels`,'check')}).catch(e=>{S.source='demo';genDemo();go('home');toast('Couldn\'t reach your provider — showing demo channels. Settings → TV provider to retry.','close')})}
 else if(window.Android)setTimeout(()=>{if(!modalOn())openLogin()},1200);
 requestAnimationFrame(loop);
 setTimeout(()=>toast('Remote: arrows · OK · Back · 0–9 for channels · Play/Pause for picture-in-picture','tv'),900);
