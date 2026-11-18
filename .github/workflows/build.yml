@@ -173,7 +173,9 @@ jobs:
                                   c.setInstanceFollowRedirects(false);
                                   c.setConnectTimeout(15000);
                                   c.setReadTimeout(45000);
-                                  c.setRequestProperty("User-Agent", "okhttp/4.9.3");
+                                  // Same browser identity the Reborn TV app uses with this provider
+                                  c.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                                  c.setRequestProperty("Accept", "*/*");
                                   code = c.getResponseCode();
                                   String loc = c.getHeaderField("Location");
                                   if (code >= 300 && code < 400 && loc != null) {
