@@ -350,6 +350,22 @@ nav{display:flex;gap:2px}
 
 /* TV boxes: drop the frosted-glass blur, which their GPUs redraw slowly on every change */
 .tvbox *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+/* TV boxes: no animated full-screen colour fades, no image masks, no big blurred glows */
+.tvbox #stage{transition:none}
+.tvbox #amb{background:radial-gradient(1100px 760px at 6% -14%,hsl(var(--h) 85% 40% / .5),transparent 62%),linear-gradient(180deg,#070a1d,#04050c 62%)}
+.tvbox #amb::after{display:none}
+.tvbox .bb-art,.tvbox .bb-live,.tvbox .dt-art{-webkit-mask-image:none!important;mask-image:none!important;transition:opacity .3s}
+.tvbox .bb-art::after,.tvbox .bb-live::after,.tvbox .dt-art::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#05060f 0,#05060fd9 30%,#05060f00 62%),linear-gradient(0deg,#05060f 0,#05060f00 42%),linear-gradient(180deg,#05060fcc 0,#05060f00 22%);pointer-events:none}
+.tvbox .t{transition:transform .13s ease-out;box-shadow:none}
+.tvbox .t.foc{transform:scale(1.06);box-shadow:0 0 0 4px #fff}
+.tvbox .btn,.tvbox .nv,.tvbox .ic,.tvbox .slot,.tvbox .key{transition:none}
+.tvbox .btn.foc{box-shadow:none;transform:none}
+.tvbox .orb{animation:none}
+.tvbox .rails-in{transition-duration:.28s}
+.tvbox .rails-in,.tvbox .vs-in,.tvbox .g-in,.tvbox .g-rows,.tvbox .g-chin{will-change:transform}
+.tvbox .toast,.tvbox #modal.on{animation:none}
+.tvbox #modal{background:#02030af2}
+.tvbox .gc{transition:none}
 </style>
 </head>
 <body>
@@ -364,7 +380,7 @@ nav{display:flex;gap:2px}
  <div id="chentry"></div>
 </div>
 <script>
-if(window.Android)document.documentElement.classList.add('tvbox');
+const TVBOX=!!window.Android;if(TVBOX)document.documentElement.classList.add('tvbox');
 // In the app, requests go through Android (no browser CORS rules); in a browser, plain fetch.
 const __hcb={};let __hid=0;
 window.__httpDone=(id,status,text,err)=>{const c=__hcb[id];if(!c)return;delete __hcb[id];err?c.rej(new Error(err)):c.res({status,text})};
@@ -568,7 +584,7 @@ function genDemo(){
  const st=[];['drama','crime','comedy','scifi','reality'].forEach(k=>POOLS[k].t.forEach(t=>st.push([t,k])));
  SERIES=st.map(([t,k],i)=>{const r=rng(hash(t));return reg(deco({kind:'series',id:'s'+i,title:t,genre:POOLS[k].g,pool:k,seasons:1+Math.floor(r()*5),eps:6+Math.floor(r()*5),desc:fillT(pick(r,DESC[k]),r),year:2020+Math.floor(r()*7)}))});
  ANCHOR=Math.floor(now()/(6*HR))*6*HR-12*HR;END=ANCHOR+48*HR;
- for(const d of CH_DEF){const ch=reg({kind:'channel',id:'c'+d[0],num:d[0],name:d[1],cat:d[2],hue:d[3],pools:d[4],epg:[]});let t=ANCHOR;while(t<END){const r=rng(hash(ch.num+':'+t));const p=makeProg(ch,pick(r,ch.pools),t,r);ch.epg.push(p);t=p.end}CHANNELS.push(ch)}
+ for(const d of CH_DEF){const ch=reg({kind:'channel',id:'c'+d[0],num:d[0],name:d[1],title:d[1],cat:d[2],hue:d[3],pools:d[4],epg:[]});let t=ANCHOR;while(t<END){const r=rng(hash(ch.num+':'+t));const p=makeProg(ch,pick(r,ch.pools),t,r);ch.epg.push(p);t=p.end}CHANNELS.push(ch)}
  S.cont=LS.get('cont',null);
  if(!S.cont){S.cont={m3:.42,s2:.67,m11:.18,s9:.31,m15:.77};save()}
  regExtras();
@@ -641,7 +657,7 @@ function art(o,shape='la'){
  const par=shape==='po'?'xMaxYMid slice':'xMidYMid slice';
  let inner;
  if(o.kind==='match'||o.match){const m=o.match;inner=`<svg viewBox="0 0 160 90" preserveAspectRatio="${par}"><polygon points="0,0 96,0 64,90 0,90" fill="hsl(${m.a.h} 75% 42%)" opacity=".7"/><polygon points="96,0 160,0 160,90 64,90" fill="hsl(${m.b.h} 75% 42%)" opacity=".7"/>${motif('pitch',h,h2,r)}</svg>`}
- else inner=`<svg viewBox="0 0 160 90" preserveAspectRatio="${par}">${motif(o.motif,h,h2,r)}</svg>`;
+ else inner=(o.img||o.logo)&&shape!=='bb'?'':`<svg viewBox="0 0 160 90" preserveAspectRatio="${par}">${motif(o.motif,h,h2,r)}</svg>`;
  const wm=shape==='bb'?'':`<div class="wm ${o.font||'ff-sans'}">${esc(o.title)}</div>`;
  const img=o.img?`<img src="${esc(o.img)}" loading="lazy" onerror="this.remove()" alt="">`:(o.logo?`<img class="lgimg" src="${esc(o.logo)}" loading="lazy" onerror="this.remove()" alt="">`:'');
  return ART[k]=`<div class="art" style="${bg}">${inner}${wm}${img}</div>`;
@@ -674,7 +690,9 @@ function matchTile(p){
  <div class="mt-ch">${p.ch.num} ${esc(p.ch.name)} · KO ${fmtT(p.start+15*MIN)}</div></div>`;
 }
 const RAIL_MAX=36; // a provider can have thousands of films; drawing them all made every page switch crawl
-function rail(title,items,sub=''){if(!items||!items.length)return'';return `<div class="rail"><h3>${title}${sub?` <small>${sub}</small>`:''}</h3><div class="track">${items.slice(0,RAIL_MAX).join('')}</div></div>`}
+const RAILMORE={};let railN=0;
+function rail(title,items,sub=''){if(!items||!items.length)return'';items=items.slice(0,RAIL_MAX);const first=TVBOX?7:items.length,id='r'+(++railN);if(items.length>first)RAILMORE[id]=items.slice(first).join('');return `<div class="rail"><h3>${title}${sub?` <small>${sub}</small>`:''}</h3><div class="track" data-rid="${id}">${items.slice(0,first).join('')}</div></div>`}
+function railFill(tr){const id=tr&&tr.dataset.rid;if(id&&RAILMORE[id]){tr.insertAdjacentHTML('beforeend',RAILMORE[id]);delete RAILMORE[id]}}
 function uniqBy(a,f){const s=new Set();return a.filter(x=>{const k=f(x);if(s.has(k))return false;s.add(k);return true})}
 const dayHash=()=>hash(new Date().toDateString());
 function trending(){const r=rng(dayHash());const pool=[...MOVIES,...SERIES].filter(kidsOK);for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}return pool.slice(0,10)}
@@ -709,7 +727,7 @@ function move(dir){
 }
 function enterView(){const v=$('#view');const m=MEM[S.view];const list=$$('.f',v).filter(vis);let el=m!=null?list[m]:null;if(!el)el=V[S.view]?.first?.()||list[0];if(el)setFocus(el)}
 function afterFocus(el){
- const tr=el.closest('.track');if(tr){const ref=el.closest('.t10')||el;tr.scrollTo({left:Math.max(0,ref.offsetLeft-90),behavior:'smooth'})}
+ const tr=el.closest('.track');if(tr){railFill(tr);const ref=el.closest('.t10')||el;tr.scrollTo({left:Math.max(0,ref.offsetLeft-90),behavior:'smooth'})}
  const rin=el.closest('.rails-in');if(rin){rin.style.transform=`translateY(${-el.closest('.rail').offsetTop}px)`}else if(el.closest('.bb')){const r2=$('#view .rails-in');if(r2)r2.style.transform='translateY(0)'}
  const vs=el.closest('.vs');if(vs)vsScroll(vs,el);
  const o=REG[el.dataset.id];
@@ -718,8 +736,8 @@ function afterFocus(el){
  if($('#view').contains(el)){MEM[S.view]=$$('#view .f').indexOf(el);V[S.view]?.onFocus?.(el)}
 }
 function vsScroll(vs,el){const inner=vs.firstElementChild;let y=+inner.dataset.y||0;let top=0,n=el;while(n&&n!==inner){top+=n.offsetTop;n=n.offsetParent}const H=vs.clientHeight,h=el.offsetHeight;if(top-y<24)y=Math.max(0,top-24);else if(top+h-y>H-30)y=top+h-H+40;inner.dataset.y=y;inner.style.transform=`translateY(${-y}px)`}
-function setHue(h){$('#stage').style.setProperty('--h',Math.round(h))}
-let navT;function navHover(el){clearTimeout(navT);const x=el.dataset.x;if(!x||x===S.view)return;navT=setTimeout(()=>{if(FOC===el&&S.view!==x&&!P.open&&!modalOn())go(x,{keepTop:true})},650)}
+let hueT;function setHue(h){clearTimeout(hueT);const f=()=>$('#stage').style.setProperty('--h',Math.round(h));if(TVBOX)hueT=setTimeout(f,450);else f()}
+let navT;function navHover(el){clearTimeout(navT);const x=el.dataset.x;if(!x||x===S.view)return;navT=setTimeout(()=>{if(FOC===el&&S.view!==x&&!P.open&&!modalOn())go(x,{keepTop:true})},TVBOX?1000:650)}
 function activate(el){if(!el)return;const a=el.dataset.a;if(ACT[a])ACT[a](el)}
 const modalOn=()=>$('#modal').classList.contains('on');
 
@@ -738,7 +756,7 @@ function renderTop(){
 let VIEW_SCREENS=[];
 function go(view,params={}){
  if(!V[view])view='home';
- VIEW_SCREENS.forEach(destroyScreen);VIEW_SCREENS=[];BB.sc=null;clearTimeout(BB.liveT);
+ VIEW_SCREENS.forEach(destroyScreen);VIEW_SCREENS=[];for(const k in RAILMORE)delete RAILMORE[k];BB.sc=null;clearTimeout(BB.liveT);
  S.view=view;S.params=params;
  const keepTop=params.keepTop;
  if(!keepTop&&FOC&&$('#top').contains(FOC)){FOC.classList.remove('foc');FOC=null}
@@ -783,7 +801,7 @@ function bbSet(o,force){
  if(!force||BB.o!==o){const a=$('#bba'+BB.layer),b=$('#bba'+(1-BB.layer));b.innerHTML=art(o,'bb');b.style.opacity=1;a.style.opacity=0;BB.layer=1-BB.layer}
  $('#bbt').innerHTML=bbText(o);
  if(fi>=0)setFocus($$('#bbt .f')[fi]||$('#bbt .f'));
- $('#bbt').animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'none'}],{duration:380,easing:'cubic-bezier(.2,.8,.2,1)'});
+ if(!TVBOX)$('#bbt').animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'none'}],{duration:380,easing:'cubic-bezier(.2,.8,.2,1)'});
  const l=$('#bbl');l.classList.remove('on');clearTimeout(BB.liveT);
  const ch=o.kind==='prog'&&isLive(o)?o.ch:o.kind==='channel'?o:null;
  if(ch&&S.set.preview&&!ch.url){BB.liveT=setTimeout(()=>{if(!$('#bbl'))return;if(!BB.sc||!BB.sc.host.isConnected){BB.sc=mountScreen($('#bbl'),ch,{w:800,h:450});VIEW_SCREENS.push(BB.sc)}else setScreen(BB.sc,ch);$('#bbl').classList.add('on')},1100)}
@@ -887,8 +905,7 @@ function guideRows(){
  let ch='',rows='';
  G.rows.forEach((c,i)=>{
   ch+=`<div class="g-chrow" data-r="${i}"><span class="no">${c.num}</span><span class="lgx" style="${logoStyle(c)}">${logoHTML(c)}${c.logo?'':esc(c.name)}</span></div>`;
-  let cells='';for(const p of c.epg){if(p.end<=G.start||p.start>=G.end)continue;const s=Math.max(p.start,G.start),e=Math.min(p.end,G.end);const w=(e-s)/MIN*PX-6;if(w<4)continue;const live=p.start<=t&&p.end>t,past=p.end<=t;
-   cells+=`<div class="gc f${live?' live':past?' past':''}" data-a="gcell" data-id="${p.id}" data-r="${i}" data-s="${p.start}" data-e="${p.end}" style="left:${(s-G.start)/MIN*PX}px;width:${w}px${live?`;--p:${pct(p)}%`:''}"><b>${esc(p.title)}</b><span>${isRem(p.id)?IC.bell:''}${past?IC.restart:''}${fmtT(p.start)} – ${fmtT(p.end)}</span></div>`}
+  const cells=guideCells(c,i);
   rows+=`<div class="g-row" style="top:${i*G.RH}px;width:${(G.end-G.start)/MIN*PX}px">${cells}</div>`;
  });
  if(!G.rows.length)rows=`<div style="padding:30px;font-size:22px;color:#ffffff90">No channels in this category.</div>`;
@@ -896,6 +913,8 @@ function guideRows(){
  G.gx=Math.max(0,(t-30*MIN-G.start)/MIN*PX);G.gy=0;applyG();
  if(S.source==='xt')G.rows.slice(0,12).forEach(needEpg);
 }
+function guideCells(c,i){const PX=G.PX,t=now();let cells='';for(const p of c.epg){if(p.end<=G.start||p.start>=G.end)continue;const s=Math.max(p.start,G.start),e=Math.min(p.end,G.end);const w=(e-s)/MIN*PX-6;if(w<4)continue;const live=p.start<=t&&p.end>t,past=p.end<=t;
+   cells+=`<div class="gc f${live?' live':past?' past':''}" data-a="gcell" data-id="${p.id}" data-r="${i}" data-s="${p.start}" data-e="${p.end}" style="left:${(s-G.start)/MIN*PX}px;width:${w}px${live?`;--p:${pct(p)}%`:''}"><b>${esc(p.title)}</b><span>${isRem(p.id)?IC.bell:''}${past?IC.restart:''}${fmtT(p.start)} – ${fmtT(p.end)}</span></div>`}return cells}
 function applyG(){$('#gin').style.transform=`translateX(${-G.gx}px)`;$('#grows').style.transform=$('#gch').style.transform=`translateY(${-G.gy}px)`}
 const rowCells=r=>$$(`#grows .gc[data-r="${r}"]`);
 function cellAt(r,t){const cs=rowCells(r);if(!cs.length)return null;return cs.find(c=>+c.dataset.s<=t&&+c.dataset.e>t)||cs.reduce((a,c)=>Math.abs(+c.dataset.s-t)<Math.abs(+a.dataset.s-t)?c:a)}
@@ -1285,7 +1304,7 @@ async function xtLoad(c){
  REG={};CHANNELS=[];MOVIES=[];SERIES=[];Object.keys(ART).forEach(k=>delete ART[k]);
  const t=now();ANCHOR=t-12*HR;END=t+36*HR;
  XT={base,user:c.user,pass:c.pass,proxy:c.proxy,api,get,cats:arr(lc).map(x=>({id:String(x.category_id),name:x.category_name})),q:[],busy:0};
- arr(ls).forEach((s,i)=>{const cn=lcn[s.category_id]||'';const ch=reg({kind:'channel',id:'c'+s.stream_id,sid:s.stream_id,num:+s.num||i+1,name:s.name||'Channel',cat:guessCat(cn+' '+(s.name||'')),xcat:String(s.category_id),hue:hash(s.name)%360,logo:s.stream_icon||'',epg:[],url:`${base}/live/${U}/${Pw}/${s.stream_id}.m3u8`});ch.epg=[phProg(ch)];CHANNELS.push(ch)});
+ arr(ls).forEach((s,i)=>{const cn=lcn[s.category_id]||'';const ch=reg({kind:'channel',id:'c'+s.stream_id,sid:s.stream_id,num:+s.num||i+1,name:s.name||'Channel',title:s.name||'Channel',cat:guessCat(cn+' '+(s.name||'')),xcat:String(s.category_id),hue:hash(s.name)%360,logo:s.stream_icon||'',epg:[],url:`${base}/live/${U}/${Pw}/${s.stream_id}.m3u8`});ch.epg=[phProg(ch)];CHANNELS.push(ch)});
  CHANNELS.sort((a,b)=>a.num-b.num);
  MOVIES=arr(vs).map(v=>reg(deco({kind:'movie',id:'m'+v.stream_id,title:v.name||'Movie',genre:vcn[v.category_id]||'Movies',year:v.year||'',mins:0,rating:v.rating?'★ '+v.rating:'',img:v.stream_icon||'',desc:'',url:`${base}/movie/${U}/${Pw}/${v.stream_id}.${v.container_extension||'mp4'}`})));
  SERIES=arr(ss).map(x=>reg(deco({kind:'series',id:'s'+x.series_id,sid:x.series_id,title:x.name||'Series',genre:scn[x.category_id]||'Box sets',img:x.cover||'',desc:x.plot||'',xt:true})));
@@ -1294,8 +1313,10 @@ async function xtLoad(c){
 }
 function phProg(ch){return reg(deco({kind:'prog',id:'p'+ch.sid+'_ph',ch,title:ch.name,start:ANCHOR,end:END,genre:CATS[ch.cat],pool:'',desc:'Guide information is loading…',hue:ch.hue},'x'))}
 function needEpg(ch){if(!ch||ch.epgReq||!XT.get)return;ch.epgReq=1;XT.q.push(ch);pumpEpg()}
-function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++;XT.get(XT.api(`get_short_epg&stream_id=${ch.sid}&limit=30`)).then(j=>{const L=(j&&j.epg_listings)||[];const ps=L.map(x=>reg(deco({kind:'prog',id:`p${ch.sid}_${x.start_timestamp}`,ch,title:b64(x.title)||ch.name,desc:b64(x.description),start:+x.start_timestamp*1000,end:+x.stop_timestamp*1000,genre:CATS[ch.cat],pool:'',hue:(ch.hue+hash(b64(x.title))%40)%360},'x'))).filter(p=>p.end>p.start).sort((a,b)=>a.start-b.start);if(ps.length)ch.epg=ps}).catch(()=>{}).finally(()=>{XT.busy--;epgRefresh();pumpEpg()})}}
-let epgT;function epgRefresh(){clearTimeout(epgT);epgT=setTimeout(()=>{if(S.view==='guide'&&!modalOn()){const r=FOC&&FOC.classList.contains('gc')?+FOC.dataset.r:null;const gx=G.gx,gy=G.gy;guideRows();G.gx=gx;G.gy=gy;applyG();if(r!=null){const c=cellAt(r,G.time);if(c)setFocus(c)}}},500)}
+function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++;XT.get(XT.api(`get_short_epg&stream_id=${ch.sid}&limit=30`)).then(j=>{const L=(j&&j.epg_listings)||[];const ps=L.map(x=>reg(deco({kind:'prog',id:`p${ch.sid}_${x.start_timestamp}`,ch,title:b64(x.title)||ch.name,desc:b64(x.description),start:+x.start_timestamp*1000,end:+x.stop_timestamp*1000,genre:CATS[ch.cat],pool:'',hue:(ch.hue+hash(b64(x.title))%40)%360},'x'))).filter(p=>p.end>p.start).sort((a,b)=>a.start-b.start);if(ps.length)ch.epg=ps}).catch(()=>{}).finally(()=>{XT.busy--;epgRefresh(ch);pumpEpg()})}}
+const EPGDIRTY=new Set();let epgT;function epgRefresh(ch){if(ch)EPGDIRTY.add(ch);clearTimeout(epgT);epgT=setTimeout(()=>{if(S.view!=='guide'){EPGDIRTY.clear();return}const fr=FOC&&FOC.classList.contains('gc')?+FOC.dataset.r:null;let refocus=false;
+ for(const c of EPGDIRTY){const i=G.rows.indexOf(c);if(i<0)continue;const row=$$('#grows .g-row')[i];if(!row)continue;row.innerHTML=guideCells(c,i);if(i===fr)refocus=true}EPGDIRTY.clear();
+ if(refocus&&!modalOn()){const c=cellAt(fr,G.time);if(c){FOC=null;setFocus(c)}}},250)}
 function xtRails(){const r=[];r.push(rail('Continue watching',contItems().map(([o,v])=>tile(o,{prog:v}))));const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched',rc.map(c=>tile(c))));r.push(rail(`Solar superpowers`,POWERS.filter(p=>!['pw_catch','pw_spoil'].includes(p.id)).map(powerTile)));
  XT.cats.slice(0,6).forEach(c=>r.push(rail(esc(c.name),CHANNELS.filter(x=>x.xcat===c.id).slice(0,20).map(x=>tile(x)))));r.push(rail('Movies',MOVIES.slice(0,30).slice(0,RAIL_MAX).map(m=>poster(m))));r.push(rail('Box sets',SERIES.slice(0,30).slice(0,RAIL_MAX).map(s=>poster(s))));return r.filter(Boolean)}
 async function xtSeriesEps(s){if(s.epList)return s.epList;const j=await XT.get(XT.api(`get_series_info&series_id=${s.sid}`));let seasons=(j&&j.episodes)||{};if(Array.isArray(seasons)){const o={};seasons.forEach((l,i)=>{if(Array.isArray(l)&&l.length)o[l[0].season||i+1]=l});seasons=o}
