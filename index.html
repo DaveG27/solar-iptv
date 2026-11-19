@@ -711,7 +711,7 @@ function tile(o,opt={}){
  if(o.kind==='prog'){
   const live=isLive(o);
   if(live){over+=`<div class="lb">LIVE</div><div class="ov"><div class="pb"><i data-s="${o.start}" data-e="${o.end}" style="width:${pct(o)}%"></i></div></div>`;cls+=' haspb'}
-  else if(o.end<=t)over+=`<div class="lb cu">Catch up</div>`;
+  else if(o.end<=t)over+=canCatch(o)?`<div class="lb cu">Catch up</div>`:`<div class="lb soon">Earlier</div>`;
   else over+=`<div class="lb soon">${o.start-t<3*HR?'In '+fmtIn(o.start-t):dayLbl(o.start)+' '+fmtT(o.start)}</div>`;
   over+=`<div class="cb">${o.ch.num}</div>`;
  }else if(o.kind==='channel'){const p=liveProg(o);over+=`<div class="lb">LIVE</div><div class="cb">${o.num}</div>`;if(p&&p.title!==o.name)over+=`<div class="ov" style="font-size:17px;font-weight:700;opacity:.85;padding-bottom:10px">${esc(p.title)}</div>`}
@@ -939,7 +939,7 @@ V.guide={
   ensureG(el);
   $$('#gch .g-chrow.cur').forEach(e=>e.classList.remove('cur'));const cr=$(`#gch .g-chrow[data-r="${el.dataset.r}"]`);if(cr)cr.classList.add('cur');
   const live=isLive(p),past=p.end<=now();
-  $('#ginfo').innerHTML=`<div class="chl"><span class="lgx" style="${logoStyle(p.ch)};flex:none;width:96px;height:42px;font-size:12px">${logoHTML(p.ch)}${esc(p.ch.name)}</span>${p.ch.num} · ${esc(p.genre||'')} ${p.se?'· '+p.se:''}</div><h2>${esc(p.title)}</h2><div class="tm">${dayLbl(p.start)} · ${fmtT(p.start)} – ${fmtT(p.end)} ${live?`· <span style="color:#ff6b86">${Math.round((p.end-now())/MIN)} min left</span>`:past?'· <span style="color:#8db4ff">Available on catch up</span>':`· starts in ${fmtIn(p.start-now())}`}${p.match?' · '+esc(matchLine(p)):''}</div><p>${esc(p.desc||'')}</p><div class="hint">OK ${live?'watch live':past?'watch from start':'details & reminders'} · ▲▼ channels · ◀▶ time · Ch± page</div>`;
+  $('#ginfo').innerHTML=`<div class="chl"><span class="lgx" style="${logoStyle(p.ch)};flex:none;width:96px;height:42px;font-size:12px">${logoHTML(p.ch)}${esc(p.ch.name)}</span>${p.ch.num} · ${esc(p.genre||'')} ${p.se?'· '+p.se:''}</div><h2>${esc(p.title)}</h2><div class="tm">${dayLbl(p.start)} · ${fmtT(p.start)} – ${fmtT(p.end)} ${live?`· <span style="color:#ff6b86">${Math.round((p.end-now())/MIN)} min left</span>`:past?(canCatch(p)?'· <span style="color:#8db4ff">Available on catch up</span>':'· already shown'):`· starts in ${fmtIn(p.start-now())}`}${p.match?' · '+esc(matchLine(p)):''}</div><p>${esc(p.desc||'')}</p><div class="hint">OK ${live?'watch live':past?(canCatch(p)?'watch from start':'details'):'details & reminders'} · ▲▼ channels · ◀▶ time · Ch± page</div>`;
   if(G.lastCh!==p.ch){G.lastCh=p.ch;setScreen(G.sc,p.ch)}
   if(S.set.ambient)setHue(p.ch.hue);
   if(S.source==='xt')needEpg(p.ch);
@@ -975,7 +975,7 @@ function guideRows(){
  if(S.source==='xt')G.rows.slice(0,12).forEach(needEpg);
 }
 function guideCells(c,i){const PX=G.PX,t=now();let cells='';for(const p of c.epg){if(p.end<=G.start||p.start>=G.end)continue;const s=Math.max(p.start,G.start),e=Math.min(p.end,G.end);const w=(e-s)/MIN*PX-6;if(w<4)continue;const live=p.start<=t&&p.end>t,past=p.end<=t;
-   cells+=`<div class="gc f${live?' live':past?' past':''}" data-a="gcell" data-id="${p.id}" data-r="${i}" data-s="${p.start}" data-e="${p.end}" style="left:${(s-G.start)/MIN*PX}px;width:${w}px${live?`;--p:${pct(p)}%`:''}"><b>${esc(p.title)}</b><span>${isRem(p.id)?IC.bell:''}${past?IC.restart:''}${fmtT(p.start)} – ${fmtT(p.end)}</span></div>`}return cells}
+   cells+=`<div class="gc f${live?' live':past?' past':''}" data-a="gcell" data-id="${p.id}" data-r="${i}" data-s="${p.start}" data-e="${p.end}" style="left:${(s-G.start)/MIN*PX}px;width:${w}px${live?`;--p:${pct(p)}%`:''}"><b>${esc(p.title)}</b><span>${isRem(p.id)?IC.bell:''}${past&&canCatch(p)?IC.restart:''}${fmtT(p.start)} – ${fmtT(p.end)}</span></div>`}return cells}
 function applyG(){$('#gin').style.transform=`translateX(${-G.gx}px)`;$('#grows').style.transform=$('#gch').style.transform=`translateY(${-G.gy}px)`}
 const rowCells=r=>$$(`#grows .gc[data-r="${r}"]`);
 function cellAt(r,t){const cs=rowCells(r);if(!cs.length)return null;return cs.find(c=>+c.dataset.s<=t&&+c.dataset.e>t)||cs.reduce((a,c)=>Math.abs(+c.dataset.s-t)<Math.abs(+a.dataset.s-t)?c:a)}
@@ -1252,7 +1252,7 @@ function actsFor(){
  const p=curProg();const fv=isFav(c.id);const a=[btn('guide','guide','TV Guide'),btn('favCh',fv?'starf':'star',fv?'Favourite':'Favourite +',c.id,fv?'on':''),btn('multi','grid','Multiview'),btn('surf','surf','Surf')];
  a.push(P.ret?btn('bounceNow','bounce','Return now'):btn('bounce','bounce','Bounce Back'));
  a.push(btn('catchup','spark','Catch me up'));
- a.push(P.shift?btn('golive','play','Go live'):btn('restart','restart','Restart'));
+ if(P.shift)a.push(btn('golive','play','Go live'));else if(canCatch(p))a.push(btn('restart','restart','Restart'));
  a.push(btn('plist',p&&inPl(progKey(p))?'check':'plus','Playlist'),btn('react','smile','React'));
  if(p&&p.match)a.push(btn('spoiler','shield',spoil(p)?'Reveal score':'Hide scores'));else a.push(btn('sleep','moon',P.sleepAt?`Sleep ${fmtIn(P.sleepAt-now())}`:'Sleep'));
  return a;
@@ -1318,13 +1318,28 @@ function ptopRender(){if(!P.open){return}const bits=[];if(P.ret)bits.push(`<div 
 function openBounce(){const p=curProg();openModal(`<div class="mcard"><div class="kick"><span class="pill">${IC.bounce} BOUNCE BACK</span></div><h2>Ad break? Go somewhere else.</h2><p>Pick how long the break is, hop to any channel, and Solar brings you straight back to <b>${esc(P.cur.name)}</b>${p?` for <b>${esc(p.title)}</b>`:''} — no watching the clock.</p><div class="mbtns">${[[30,'30 sec'],[90,'1½ min'],[180,'3 min'],[300,'5 min']].map(([s,l])=>btn('bounceSet','clock',l,s)).join('')}</div></div>`)}
 function demoBounce(){const ch=CHANNELS.find(c=>c.cat==='ent')||CHANNELS[0];playChannel(ch,{quiet:true});setTimeout(openBounce,600)}
 function demoCatch(){const L=liveList(p=>p.ch.cat!=='news'&&p.ch.cat!=='music'&&(now()-p.start)>15*MIN);const p=L.find(x=>x.match)||L[0];if(!p)return;playChannel(p.ch,{quiet:true});setTimeout(openCatchup,700)}
+/* Catch-up: demo channels fake it; real providers only where the channel is recorded (tv_archive) */
+function canCatch(p){if(!p||p.start>=now())return false;if(S.source!=='xt')return true;const c=p.ch;return !!(c&&c.archive&&c.sid&&p.start>=now()-c.archive*864e5&&!/_ph$/.test(p.id))}
+function tzStamp(ms,tz){const loc=()=>{const d=new Date(ms);return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}:${pad(d.getHours())}-${pad(d.getMinutes())}`};if(!tz)return loc();try{const f=new Intl.DateTimeFormat('en-GB',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date(ms));const g=t=>f.find(x=>x.type===t).value;return `${g('year')}-${g('month')}-${g('day')}:${g('hour')==='24'?'00':g('hour')}-${g('minute')}`}catch(e){return loc()}}
+function catchupUrl(p,ext){const U=encodeURIComponent(XT.user),Pw=encodeURIComponent(XT.pass),dur=Math.max(1,Math.ceil((p.end-p.start)/MIN));return `${XT.base}/timeshift/${U}/${Pw}/${dur}/${tzStamp(p.start,XT.tz)}/${p.ch.sid}.${ext}`}
+function playCatchup(p){if(!p)return;
+ if(S.source!=='xt'){playChannel(p.ch,{shift:Math.max(0,now()-p.start),quiet:true});toast(`Catch up · ${esc(p.title)} from ${fmtT(p.start)}`,'restart');return}
+ if(!canCatch(p)){toast(`${esc(p.ch.name)} isn't recorded by your provider, so it can't play from the start`,'close');return}
+ const title=`${p.ch.name} · ${p.title} · from ${fmtT(p.start)}`;
+ if(window.Android&&Android.playNative){if(modalOn())closeModal(true);if(P.open&&!P.pip)closePlayer();Android.playNative(catchupUrl(p,'ts'),title,0,'cu_'+p.id);return}
+ playVod(reg({kind:'movie',id:'cu_'+p.id,title,genre:p.genre,mins:Math.ceil((p.end-p.start)/MIN),hue:p.hue,url:catchupUrl(p,'m3u8')}))}
 function recap(p,mins){
  const r=rng(hash(p.id+'recap'));
  if(p.match){const st=matchState(p),m=p.match;if(st.min<0)return['The build-up is still on — kick-off at '+fmtT(p.start+15*MIN)+'.','Team news: both sides at full strength.'];if(spoil(p))return['Spoiler Shield is on, so the goals stay hidden.',`It's ${st.label==='HT'?'half time':st.ft?'full time':st.min+' minutes in'} — and it's been end-to-end.`,'Reveal the score from the player when you are ready.'];
   const out=st.goals.map(g=>`${g.min}' — GOAL! ${g.who} scores for ${g.side?m.b.n:m.a.n}.`);if(!out.length)out.push(`No goals yet after ${st.min} minutes — ${pick(r,[m.a.n,m.b.n])} have had the better chances.`);out.push(`Score: ${m.a.n} ${st.sa}–${st.sb} ${m.b.n} · possession ${m.pos}%–${100-m.pos}%.`);return out}
  const key=p.ch.cat==='movie'?'movie':BEATMAP[p.pool]||(BEATS[p.pool]?p.pool:'generic');const B=BEATS[key];const n=clamp(1+Math.floor(mins/14),1,Math.min(4,B.length));const out=[];const used=new Set();while(out.length<n){const i=Math.floor(r()*B.length);if(used.has(i))continue;used.add(i);out.push(fillT(B[i],r))}return out}
-function openCatchup(){const p=curProg();if(!p){toast('Nothing to catch up on here');return}const mins=Math.max(1,Math.round((now()-p.start)/MIN));
- openModal(`<div class="mcard"><div class="kick"><span class="pill">${IC.spark} CATCH ME UP</span><span>${p.ch.num} ${esc(p.ch.name)}</span></div><h2>${esc(p.title)}</h2><p class="mut">You've joined ${mins} minute${mins>1?'s':''} in. Here's the story so far:</p><ul class="beats">${recap(p,mins).map(b=>`<li>${esc(b)}</li>`).join('')}</ul><div class="mbtns">${btn('cuStart','restart','Watch from the start',p.id)}${btn('closeModal','play','Carry on live')}</div></div>`)}
+function openCatchup(){const p=curProg();if(!p){toast('Nothing to catch up on here');return}const mins=Math.max(1,Math.round((now()-p.start)/MIN)),left=Math.max(0,Math.round((p.end-now())/MIN)),nx=nextProg(p.ch,p);
+ const fromStart=canCatch(p)?btn('cuStart','restart','Watch from the start',p.id):'';
+ let body;
+ if(S.source==='xt'){const d=(p.desc||'').trim();const real=d&&!/^Guide information/i.test(d);
+  body=`<p class="mut">You've joined ${mins} minute${mins>1?'s':''} in · ${left} min left${nx?` · then ${esc(nx.title)} at ${fmtT(nx.start)}`:''}.</p>`+(real?`<div class="kick" style="margin-top:22px"><span class="pill">ABOUT THIS PROGRAMME</span><span>from the TV guide</span></div><p style="margin-top:12px;max-height:240px;overflow:hidden">${esc(d)}</p>`:`<p style="margin-top:18px">Your provider hasn't sent a description for this programme, so there's nothing to recap.</p>`)+(canCatch(p)?'':`<p class="mut" style="margin-top:14px;font-size:19px">This channel isn't recorded by your provider, so it can't be watched from the start.</p>`)}
+ else body=`<p class="mut">You've joined ${mins} minute${mins>1?'s':''} in. Here's the story so far (demo channel):</p><ul class="beats">${recap(p,mins).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+ openModal(`<div class="mcard"><div class="kick"><span class="pill">${IC.spark} CATCH ME UP</span><span>${p.ch.num} ${esc(p.ch.name)}</span></div><h2>${esc(p.title)}</h2>${body}<div class="mbtns">${fromStart}${btn('closeModal','play','Carry on live',null,fromStart?'':'pri')}</div></div>`)}
 
 /* surf */
 const SURF={open:false,i:0,sc:null,auto:false,last:0,prevFoc:null};
@@ -1348,8 +1363,8 @@ function openDetails(o){
  if(!o)return;if(o.kind==='series'&&o.xt&&!o.epList){toast(`Loading episodes of ${esc(o.title)}…`,'tv');xtSeriesEps(o).then(()=>openDetails(o)).catch(e=>toast(`Couldn't load episodes — ${esc(e.message||e)}`,'close'));return}
  const t=now();let btns=[],more=[],moreT='More like this';
  if(o.kind==='prog'){const live=isLive(o),past=o.end<=t;
-  if(live)btns.push(btn('watchCh','play','Watch live',o.ch.id,'pri'),btn('cuStart','restart','From the start',o.id));
-  else if(past)btns.push(btn('cuStart','restart','Watch from start',o.id,'pri'));
+  if(live){btns.push(btn('watchCh','play','Watch live',o.ch.id,'pri'));if(canCatch(o))btns.push(btn('cuStart','restart','From the start',o.id))}
+  else if(past){if(canCatch(o))btns.push(btn('cuStart','restart','Watch from start',o.id,'pri'));else btns.push(btn('watchCh','play',`Watch ${o.ch.name} now`,o.ch.id,'pri'))}
   else btns.push(btn('remind',isRem(o.id)?'check':'bell',isRem(o.id)?'Reminder set':'Remind me',o.id,'pri'),btn('watchCh','play',`Watch ${o.ch.name} now`,o.ch.id));
   btns.push(btn('pl',inPl(progKey(o))?'check':'plus',inPl(progKey(o))?'In Playlist':'Add to Playlist',progKey(o)));
   btns.push(btn('favCh',isFav(o.ch.id)?'starf':'star',isFav(o.ch.id)?'Favourite channel':'Favourite channel +',o.ch.id),btn('hideCh','eyeoff','Hide channel',o.ch.id));
@@ -1439,8 +1454,8 @@ async function xtLoad(c){
  const arr=x=>Array.isArray(x)?x:[];const lcn={},vcn={},scn={};arr(lc).forEach(x=>lcn[x.category_id]=x.category_name);arr(vc).forEach(x=>vcn[x.category_id]=x.category_name);arr(scat).forEach(x=>scn[x.category_id]=x.category_name);
  REG={};CHANNELS=[];MOVIES=[];SERIES=[];Object.keys(ART).forEach(k=>delete ART[k]);
  const t=now();ANCHOR=t-12*HR;END=t+36*HR;
- XT={base,user:c.user,pass:c.pass,proxy:c.proxy,api,get,cats:arr(lc).map(x=>({id:String(x.category_id),name:x.category_name})),q:[],busy:0};
- arr(ls).forEach((s,i)=>{const cn=lcn[s.category_id]||'';const ch=reg({kind:'channel',id:'c'+s.stream_id,sid:s.stream_id,num:+s.num||i+1,name:s.name||'Channel',title:s.name||'Channel',cat:guessCat(cn+' '+(s.name||'')),xcat:String(s.category_id),hue:hash(s.name)%360,logo:s.stream_icon||'',epg:[],url:`${base}/live/${U}/${Pw}/${s.stream_id}.m3u8`});ch.epg=[phProg(ch)];CHANNELS.push(ch)});
+ XT={base,user:c.user,pass:c.pass,proxy:c.proxy,api,get,tz:(info.server_info&&info.server_info.timezone)||'',cats:arr(lc).map(x=>({id:String(x.category_id),name:x.category_name})),q:[],busy:0};
+ arr(ls).forEach((s,i)=>{const cn=lcn[s.category_id]||'';const ch=reg({kind:'channel',id:'c'+s.stream_id,sid:s.stream_id,num:+s.num||i+1,name:s.name||'Channel',title:s.name||'Channel',cat:guessCat(cn+' '+(s.name||'')),xcat:String(s.category_id),hue:hash(s.name)%360,logo:s.stream_icon||'',epg:[],archive:String(s.tv_archive)==='1'?Math.max(1,+s.tv_archive_duration||1):0,url:`${base}/live/${U}/${Pw}/${s.stream_id}.m3u8`});ch.epg=[phProg(ch)];CHANNELS.push(ch)});
  CHANNELS.sort((a,b)=>a.num-b.num);
  MOVIES=arr(vs).map(v=>reg(deco({kind:'movie',id:'m'+v.stream_id,title:v.name||'Movie',genre:vcn[v.category_id]||'Movies',year:v.year||'',mins:0,rating:v.rating?'★ '+v.rating:'',img:v.stream_icon||'',desc:'',url:`${base}/movie/${U}/${Pw}/${v.stream_id}.${v.container_extension||'mp4'}`})));
  SERIES=arr(ss).map(x=>reg(deco({kind:'series',id:'s'+x.series_id,sid:x.series_id,title:x.name||'Series',genre:scn[x.category_id]||'Box sets',img:x.cover||'',desc:x.plot||'',xt:true})));
@@ -1530,7 +1545,7 @@ const ACT={
  hidDone:()=>closeModal(),
  appExit:()=>{try{window.Android.exit()}catch(e){}},
  watchCh:el=>playChannel(REG[el.dataset.x]),
- cuStart:el=>{const p=REG[el.dataset.x];if(!p)return;playChannel(p.ch,{shift:Math.max(0,now()-p.start),quiet:true});toast(`Catch up · ${esc(p.title)} from ${fmtT(p.start)}`,'restart')},
+ cuStart:el=>playCatchup(REG[el.dataset.x]),
  remind:el=>{toggleRem(el.dataset.x);const on=isRem(el.dataset.x);el.innerHTML=(on?IC.check:IC.bell)+`<span>${on?'Reminder set':'Remind me'}</span>`},
  pl:el=>{togglePl(el.dataset.x);const on=inPl(el.dataset.x);el.innerHTML=(on?IC.check:IC.plus)+`<span>${on?'In Playlist':'Add to Playlist'}</span>`},
  reveal:el=>{REVEAL.add(el.dataset.x);refreshScores();const p=REG[el.dataset.x];el.innerHTML=IC.shield+`<span>${esc(matchLine(p))}</span>`},
@@ -1545,7 +1560,7 @@ const ACT={
  bounceSet:el=>{const s=+el.dataset.x;P.ret={ch:P.cur,at:now()+s*1000};closeModal(true);hideOSD();toast(`Bounce Back armed — we'll return you to ${esc(P.cur.name)} in ${fmtClock(s*1000)}. Pick a channel.`,'bounce');browseStep(1);ptopRender()},
  bounceNow:()=>{const ch=P.ret.ch;P.ret=null;playChannel(ch,{quiet:true});ptopRender()},
  catchup:()=>openCatchup(),
- restart:()=>{const p=curProg();if(!p)return;P.shift=now()-p.start;toast(`Restarted from ${fmtT(p.start)}`,'restart');renderOSD();setFocus($('#osd [data-a="golive"]'))},
+ restart:()=>{const p=curProg();if(!p)return;if(S.source==='xt')return playCatchup(p);P.shift=now()-p.start;toast(`Restarted from ${fmtT(p.start)}`,'restart');renderOSD();setFocus($('#osd [data-a="golive"]'))},
  golive:()=>{P.shift=0;toast('Back to live','play');renderOSD();setFocus($('#osd [data-a="restart"]'))},
  vodRestart:()=>{P.vodPos=0;if(P.sc.video)P.sc.video.currentTime=0;renderOSD();setFocus($('#osd [data-a="vodRestart"]'))},
  plist:el=>{const c=P.cur;const k=c.kind==='channel'?(curProg()?progKey(curProg()):null):(c.parent?c.parent.id:c.id);if(!k)return;togglePl(k);const on=inPl(k);el.innerHTML=(on?IC.check:IC.plus)+'<span>Playlist</span>'},
