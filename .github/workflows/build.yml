@@ -174,6 +174,16 @@ jobs:
               }
 
               private class Bridge {
+                  private final java.util.concurrent.ConcurrentHashMap<String, String> bodies = new java.util.concurrent.ConcurrentHashMap<>();
+
+                  /** Hand a stored reply to the page (much cheaper than pasting megabytes into a script). */
+                  @JavascriptInterface
+                  public String take(String id) { String b = bodies.remove(id); return b == null ? "" : b; }
+
+                  /** Like httpGet, but a JSON list is cut down to the named fields before the page sees it. */
+                  @JavascriptInterface
+                  public void httpGetSlim(final String id, final String url, final String fields) { fetch(id, url, fields); }
+
                   @JavascriptInterface
                   public void exit() {
                       runOnUiThread(new Runnable() { public void run() { finish(); } });
@@ -211,7 +221,9 @@ jobs:
 
                   /** GET a URL natively (follows redirects, ignores CORS) and hand the result back to JS. */
                   @JavascriptInterface
-                  public void httpGet(final String id, final String url) {
+                  public void httpGet(final String id, final String url) { fetch(id, url, null); }
+
+                  private void fetch(final String id, final String url, final String fields) {
                       new Thread(new Runnable() { public void run() {
                           int code = 0;
                           String body = "";
@@ -250,8 +262,36 @@ jobs:
                           } finally {
                               if (c != null) c.disconnect();
                           }
-                          final String js = "window.__httpDone&&__httpDone(" + org.json.JSONObject.quote(id) + "," + code + ","
-                                  + org.json.JSONObject.quote(body) + "," + org.json.JSONObject.quote(err) + ")";
+                          if (fields != null && code < 400 && body.length() > 0 && body.charAt(0) == '[') {
+                              try {
+                                  String[] keep = fields.split(",");
+                                  org.json.JSONArray src = new org.json.JSONArray(body);
+                                  StringBuilder sb = new StringBuilder(body.length() / 3);
+                                  sb.append('[');
+                                  for (int i = 0; i < src.length(); i++) {
+                                      org.json.JSONObject o = src.optJSONObject(i);
+                                      if (o == null) continue;
+                                      if (sb.length() > 1) sb.append(',');
+                                      sb.append('{');
+                                      boolean first = true;
+                                      for (String k : keep) {
+                                          if (!o.has(k) || o.isNull(k)) continue;
+                                          if (!first) sb.append(',');
+                                          first = false;
+                                          sb.append(org.json.JSONObject.quote(k)).append(':');
+                                          Object v = o.opt(k);
+                                          if (v instanceof Number || v instanceof Boolean) sb.append(v.toString());
+                                          else sb.append(org.json.JSONObject.quote(String.valueOf(v)));
+                                      }
+                                      sb.append('}');
+                                  }
+                                  sb.append(']');
+                                  body = sb.toString();
+                              } catch (Exception ignored) { }
+                          }
+                          bodies.put(id, body);
+                          final String js = "window.__httpDone&&__httpDone(" + org.json.JSONObject.quote(id) + "," + code + ",null,"
+                                  + org.json.JSONObject.quote(err) + ")";
                           runOnUiThread(new Runnable() { public void run() { web.evaluateJavascript(js, null); } });
                       }}).start();
                   }
