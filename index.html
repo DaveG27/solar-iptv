@@ -352,6 +352,18 @@ nav{display:flex;gap:2px}
 
 /* TV boxes: drop the frosted-glass blur, which their GPUs redraw slowly on every change */
 .tvbox *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.gpanel{position:absolute;left:0;top:0;bottom:0;width:980px;background:linear-gradient(90deg,#0b0e26fa,#0b0e26f0);padding:44px 40px 0 90px;box-shadow:30px 0 80px #000b;border-right:1px solid #ffffff1a}
+.gpanel h2{font-size:40px;font-weight:900}.gpanel .mut{font-size:19px;color:#ffffffa0;margin-top:6px}
+.gp-cols{position:absolute;top:150px;bottom:30px;left:90px;right:40px;display:flex;gap:34px}
+.gp-list{position:relative!important;flex:1;height:100%}
+.gp-item{height:64px;border-radius:14px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 20px;font-size:22px;font-weight:700;margin-bottom:6px;cursor:pointer}
+.gp-item span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gp-item small{opacity:.6;font-size:17px;flex:none}
+.gp-item.sel{box-shadow:inset 0 0 0 2px #ffffffb0}.gp-item.foc{background:#fff;color:#0a0d22}
+.gp-letters{width:290px;flex:none}.gp-h{font-size:17px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#ffffff90;margin-bottom:12px}
+.gp-kb{display:grid;grid-template-columns:repeat(4,64px);gap:8px}.gp-kb .key{height:58px;font-size:22px}
+.cty-top{display:flex;gap:14px;margin:18px 0 14px}
+.cty-list{position:relative!important;height:560px}
+.gtab-hint{align-self:center;font-size:17px;font-weight:700;color:#ffffff70;margin-left:10px;white-space:nowrap}
 /* TV boxes: no animated full-screen colour fades, no image masks, no big blurred glows */
 .tvbox #stage{transition:none}
 .tvbox #amb{background:radial-gradient(1100px 760px at 6% -14%,hsl(var(--h) 85% 40% / .5),transparent 62%),linear-gradient(180deg,#070a1d,#04050c 62%)}
@@ -471,7 +483,7 @@ const btn=(a,ic,label,x,cls='')=>`<div class="btn f ${cls}" data-a="${a}"${x!=nu
 const LS={get(k,d){try{const v=localStorage.getItem('primo_'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('primo_'+k,JSON.stringify(v))}catch(e){}}};
 const S={
  view:'home',params:{},
- set:Object.assign({spoiler:false,ambient:true,preview:true,pip:true,autoSurf:6,nativeLive:false},LS.get('set',{})),
+ set:Object.assign({spoiler:false,ambient:true,preview:true,pip:true,autoSurf:6,nativeLive:false,merge:true,qpref:'FHD'},LS.get('set',{})),
  profile:LS.get('profile','main'),
  playlist:LS.get('playlist',['T:The Harbour','m3']),
  reminders:LS.get('rem',[]),
@@ -491,10 +503,10 @@ const isKids=()=>!!(PROF[S.profile]&&PROF[S.profile].kids);
 const pk=k=>S.profile==='main'?k:k+'@'+S.profile; // 'main' keeps the original storage keys
 function loadProfileData(){S.playlist=LS.get(pk('playlist'),S.profile==='main'?['T:The Harbour','m3']:[]);S.reminders=LS.get(pk('rem'),[]);S.recent=LS.get(pk('recent'),[]);S.cont=S.source==='xt'?LS.get(pk(xtContKey()),{}):LS.get(pk('cont'),null)}
 loadProfileData();
-const LISTS={fav:[],hid:[],hidc:[],v:0};
+const LISTS={fav:[],hid:[],hidc:[],hidcty:[],v:0};
 function listSuf(){try{return S.source==='xt'?'_'+(XT.pid||'x'):'_demo'}catch(e){return'_demo'}}
-function loadLists(){const f=listSuf();LISTS.fav=LS.get(pk('fav'+f),[]);LISTS.hid=LS.get(pk('hid'+f),[]);LISTS.hidc=LS.get(pk('hidc'+f),[]);LISTS.v++}
-function saveLists(){const f=listSuf();LS.set(pk('fav'+f),LISTS.fav);LS.set(pk('hid'+f),LISTS.hid);LS.set(pk('hidc'+f),LISTS.hidc);LISTS.v++}
+function loadLists(){const f=listSuf();LISTS.fav=LS.get(pk('fav'+f),[]);LISTS.hid=LS.get(pk('hid'+f),[]);LISTS.hidc=LS.get(pk('hidc'+f),[]);LISTS.hidcty=LS.get(pk('hidcty'+f),[]);LISTS.v++}
+function saveLists(){const f=listSuf();LS.set(pk('fav'+f),LISTS.fav);LS.set(pk('hid'+f),LISTS.hid);LS.set(pk('hidc'+f),LISTS.hidc);LS.set(pk('hidcty'+f),LISTS.hidcty);LISTS.v++}
 const isFav=id=>LISTS.fav.includes(id);
 const grpOf=c=>S.source==='xt'?c.xcat:c.cat;
 function toggleIn(a,x){const i=a.indexOf(x);if(i>=0)a.splice(i,1);else a.push(x);return i<0}
@@ -648,8 +660,26 @@ function regExtras(){
 }
 
 /* ---------- lookups ---------- */
-let CHC={k:'',L:[]};
-const chans=()=>{const key=CHANNELS.length+'|'+LISTS.v+'|'+S.profile+'|'+(CHANNELS[0]&&CHANNELS[0].id);if(CHC.k===key)return CHC.L;let L=CHANNELS;
+let CHC={k:'',L:[]},DUPV=0;
+/* ---- countries: read from the provider's group names ("UK | Sports", "[US] News", "DE: Sport") ---- */
+const CTY={UK:'United Kingdom',GB:'United Kingdom',IE:'Ireland',IRE:'Ireland',US:'United States',USA:'United States',CA:'Canada',CAN:'Canada',AU:'Australia',AUS:'Australia',NZ:'New Zealand',FR:'France',DE:'Germany',GER:'Germany',ES:'Spain',ESP:'Spain',IT:'Italy',ITA:'Italy',PT:'Portugal',NL:'Netherlands',BE:'Belgium',PL:'Poland',TR:'Turkey',TUR:'Turkey',IN:'India',IND:'India',PK:'Pakistan',AR:'Arabic',ARA:'Arabic',ARAB:'Arabic',AF:'Africa',AFR:'Africa',SE:'Sweden',NO:'Norway',DK:'Denmark',FI:'Finland',GR:'Greece',RO:'Romania',AL:'Albania',EXYU:'Ex-Yu',YU:'Ex-Yu',BR:'Brazil',MX:'Mexico',LAT:'Latin America',LATAM:'Latin America',LATINO:'Latin America',RU:'Russia',UA:'Ukraine',CH:'Switzerland',AT:'Austria',HU:'Hungary',CZ:'Czech Republic',SK:'Slovakia',BG:'Bulgaria',IR:'Iran',KU:'Kurdish',KUR:'Kurdish',PH:'Philippines',CN:'China',JP:'Japan',KR:'Korea',TH:'Thailand',VN:'Vietnam',NG:'Nigeria',ZA:'South Africa',CARIB:'Caribbean',SCOT:'Scotland',IL:'Israel',SA:'Saudi Arabia',AE:'UAE',UAE:'UAE',EG:'Egypt',MA:'Morocco',DZ:'Algeria',TN:'Tunisia',LB:'Lebanon',SO:'Somalia',ET:'Ethiopia',BD:'Bangladesh',LK:'Sri Lanka',MY:'Malaysia',ID:'Indonesia',SG:'Singapore',HR:'Croatia',RS:'Serbia',BA:'Bosnia',MK:'Macedonia',SI:'Slovenia',LT:'Lithuania',LV:'Latvia',EE:'Estonia',IS:'Iceland',CY:'Cyprus',MT:'Malta',CL:'Chile',CO:'Colombia',PE:'Peru',VE:'Venezuela'};
+const CTYFULL=Object.entries(CTY).map(([k,v])=>[v.toUpperCase(),k]).sort((a,b)=>b[0].length-a[0].length);
+function ctyOf(t){const s=String(t||'').toUpperCase().replace(/[^\x20-\x7E]/g,' ').trim();if(!s)return'';
+ let m=s.match(/^[\[\(|{\s]*([A-Z]{2,6})\s*[\]\)|}:\-–—»▎\/]/)||s.match(/^([A-Z]{2,6})\s+/);if(m&&CTY[m[1]])return m[1]==='GB'?'UK':m[1];
+ for(const [full,code] of CTYFULL)if(s.startsWith(full))return code;return''}
+const ctyName=k=>k==='OTHER'?'No country (PPV, events, 24/7 and others)':(CTY[k]||k);
+/* ---- one entry per channel: SD/HD/FHD/4K copies become one channel with a Quality choice ---- */
+const QPREF={FHD:['FHD','HD','4K','','SD'],'4K':['4K','FHD','HD','','SD'],HD:['HD','FHD','','SD','4K'],SD:['SD','','HD','FHD','4K']};
+function qualOf(n){const u=String(n||'').toUpperCase();if(/\b(4K|UHD|2160P?)\b|ᵁᴴᴰ/.test(u))return'4K';if(/\b(FHD|1080P?)\b|ᶠᴴᴰ/.test(u))return'FHD';if(/\b(HD|720P?)\b|ᴴᴰ/.test(u))return'HD';if(/\bSD\b|ˢᴰ/.test(u))return'SD';return''}
+function baseName(n){return String(n||'').replace(/^[\s\[\(|{]*[A-Za-z]{2,6}\s*[\]\)|}:\-–—»▎\/]+\s*/,'').replace(/\b(4K|UHD|2160P?|FHD|1080P?|HD|720P?|SD|HEVC|H\.?26[45]|50 ?FPS|60 ?FPS|RAW|BACKUP|ALT|MULTI ?AUDIO)\b/gi,' ').replace(/[ᴴᴰᶠᵁˢ]+/g,' ').replace(/[\[\]\(\)|:\-–—_•·*]+/g,' ').replace(/\s+/g,' ').trim().toLowerCase()}
+function mergeDupes(){const pref=QPREF[S.set.qpref]||QPREF.FHD,g=new Map();
+ for(const c of CHANNELS){c.dupOf=null;c.alts=null;c.q=qualOf(c.name);const b=baseName(c.name);if(!b)continue;const k=(c.cty||'')+'|'+b;let L=g.get(k);if(!L)g.set(k,L=[]);L.push(c)}
+ for(const L of g.values()){if(L.length<2)continue;L.sort((a,b)=>(pref.indexOf(a.q)-pref.indexOf(b.q))||a.num-b.num);const p0=L[0];p0.alts=L;for(const c of L.slice(1))c.dupOf=p0}
+ DUPV++;CHC.k=''}
+function countriesFound(){const n={};for(const c of CHANNELS){if(S.set.merge!==false&&c.dupOf)continue;const k=c.cty||'OTHER';n[k]=(n[k]||0)+1}return Object.entries(n).sort((a,b)=>(a[0]==='OTHER')-(b[0]==='OTHER')||b[1]-a[1])}
+const chans=()=>{const key=CHANNELS.length+'|'+LISTS.v+'|'+S.profile+'|'+(CHANNELS[0]&&CHANNELS[0].id)+'|'+(S.set.merge!==false)+'|'+DUPV;if(CHC.k===key)return CHC.L;let L=CHANNELS;
+ if(S.set.merge!==false)L=L.filter(c=>!c.dupOf);
+ if(LISTS.hidcty.length){const hy=new Set(LISTS.hidcty);L=L.filter(c=>!hy.has(c.cty||'OTHER'))}
  if(LISTS.hid.length||LISTS.hidc.length){const h=new Set(LISTS.hid),hc=new Set(LISTS.hidc);L=L.filter(c=>!h.has(c.id)&&!hc.has(grpOf(c)))}
  if(isKids())L=L.filter(c=>c.cat==='kids');CHC={k:key,L};return L};
 function progAt(ch,t){const e=ch.epg;for(let i=0;i<e.length;i++)if(e[i].start<=t&&e[i].end>t)return e[i];return null}
@@ -675,7 +705,7 @@ const inPl=k=>S.playlist.includes(k);
 const isRem=id=>S.reminders.includes(id);
 const logoStyle=ch=>`background:linear-gradient(135deg,hsl(${ch.hue} 70% 46%),hsl(${(ch.hue+40)%360} 70% 24%))`;
 const logoHTML=ch=>ch.logo?`<img src="${esc(ch.logo)}" onerror="this.remove()" alt="">`:'';
-const idxOf=ch=>Math.max(0,chans().indexOf(ch));
+const idxOf=ch=>Math.max(0,chans().indexOf(ch&&ch.dupOf||ch));
 
 /* ---------- generative artwork ---------- */
 const ART={};
@@ -909,7 +939,7 @@ V.sports=browseView(()=>[...footballLive().filter(isLive),...liveList(p=>p.ch.ca
 const _sa=V.sports.after;V.sports.after=()=>{_sa();$('#view').insertAdjacentHTML('beforeend',tickerHTML())};
 function tickerHTML(){const items=footballLive().map(p=>{const st=matchState(p),m=p.match;return `<span>${esc(m.a.n)}<b>${spoil(p)||st.min<0?'v':st.sa+' – '+st.sb}</b>${esc(m.b.n)} <small style="opacity:.6">${st.label}</small></span>`});if(!items.length)return'';const s=items.join('');return `<div class="ticker"><div class="tl">LIVE SCORES</div><div class="tk-in">${s}${s}</div></div>`}
 const GEN_ORDER=['Action','Sci-Fi','Thriller','Comedy','Drama','Family','Romance','Horror'];
-function xtGroupRails(cats,groups,what){if(!XT.vodReady)return[`<div class="empty">Loading your ${what}… this can take a moment the first time.</div>`];const out=[];for(const name of cats){const L=groups&&groups.get(name);if(L&&L.length)out.push(rail(esc(name),L.map(o=>poster(o))));if(out.length>=14)break}return out.length?out:[`<div class="empty">Your provider didn't send any ${what}.</div>`]}
+function xtGroupRails(cats,groups,what){if(!XT.vodReady)return[`<div class="empty">Loading your ${what}… this can take a moment the first time.</div>`];const out=[],hy=new Set(LISTS.hidcty);for(const name of cats){if(hy.size&&hy.has(ctyOf(name)||'OTHER'))continue;const L=groups&&groups.get(name);if(L&&L.length)out.push(rail(esc(name),L.map(o=>poster(o))));if(out.length>=14)break}return out.length?out:[`<div class="empty">Your provider didn't send any ${what}.</div>`]}
 const xtMovies=browseView(()=>MOVIES.slice(0,4),()=>xtGroupRails(XT.vcats||[],XT.vg,'films'));
 const xtTV=browseView(()=>SERIES.slice(0,4),()=>xtGroupRails(XT.scats||[],XT.sg,'box sets'));
 V.movies=browseView(()=>[...liveList(p=>p.ch.cat==='movie').slice(0,2),...MOVIES.filter(m=>m.year===2026).slice(0,3)],()=>[
@@ -931,13 +961,15 @@ const _ka=V.kids.after;V.kids.after=()=>{setHue(48);_ka()};
 const G={PX:7,cat:'all',gx:0,gy:0,time:0,start:0,end:0,rows:[],sc:null,lastCh:null,RH:84};
 V.guide={
  render(){G.start=Math.floor(now()/(30*MIN))*30*MIN-2*HR;G.end=G.start+28*HR;G.time=now();G.lastCh=null;
+  if(!G.picked&&S.source==='xt'){G.cat=LISTS.fav.length?'fav':S.recent.length?'recent':G.cat}
   if(G.cat==='fav'&&!LISTS.fav.length)G.cat='all';
-  if(G.cat!=='fav'&&S.source==='xt'&&(G.cat==='all'||!XT.cats.find(c=>c.id===G.cat)||LISTS.hidc.includes(G.cat)))G.cat=XT.cats.find(c=>!LISTS.hidc.includes(c.id))?.id||'all';
-  if(G.cat!=='fav'&&S.source!=='xt'&&!CATS[G.cat])G.cat='all';
+  if(G.cat==='recent'&&!S.recent.length)G.cat='all';
+  if(G.cat!=='fav'&&G.cat!=='recent'&&S.source==='xt'&&(G.cat==='all'||!guideGroups().some(([k])=>k===G.cat)))G.cat=guideGroups().find(([k])=>k!=='fav'&&k!=='recent')?.[0]||'all';
+  if(G.cat!=='fav'&&G.cat!=='recent'&&S.source!=='xt'&&!CATS[G.cat])G.cat='all';
   const hc=new Set(LISTS.hidc);let tabs=S.source==='xt'?XT.cats.filter(c=>!hc.has(c.id)).map(c=>[c.id,c.name]):Object.entries(CATS).filter(([k])=>(!isKids()||k==='kids'||k==='all')&&!hc.has(k));
   if(LISTS.fav.length)tabs=[['fav','★ Favourites'],...tabs];
   return `<div class="g-head"><div class="g-prev scr" id="gprev"><div class="tag pill live">LIVE</div></div><div class="g-info" id="ginfo"></div></div>
-  <div class="g-tabs" id="gtabs">${tabs.map(([k,n])=>`<div class="tab f${k===G.cat?' sel':''}" data-a="gtab" data-x="${esc(k)}">${esc(n)}</div>`).join('')}</div>
+  <div class="g-tabs" id="gtabs">${S.source==='xt'?gTabsXT():tabs.map(([k,n])=>`<div class="tab f${k===G.cat?' sel':''}" data-a="gtab" data-x="${esc(k)}">${esc(n)}</div>`).join('')}</div>
   <div class="g-grid"><div class="g-chcol"><div class="g-chin" id="gch"></div></div><div class="g-area" id="garea"><div class="g-in" id="gin"><div class="g-times" id="gtimes"></div><div class="gpast" id="gpast"></div><div class="g-rows" id="grows"></div><div class="gnow" id="gnow"></div></div></div></div>`},
  after(){G.sc=mountScreen($('#gprev'),null,{w:498,h:280});VIEW_SCREENS.push(G.sc);guideRows()},
  first(){return cellAt(0,G.time)||$('#gtabs .tab.sel')},
@@ -959,13 +991,25 @@ V.guide={
   const r=+FOC.dataset.r;
   if(k==='up'){if(r===0){setFocus($('#gtabs .tab.sel')||$('#gtabs .tab'));return true}const c=cellAt(r-1,G.time);if(c)setFocus(c);return true}
   if(k==='down'){if(r<G.rows.length-1){const c=cellAt(r+1,G.time);if(c)setFocus(c)}return true}
-  if(k==='chup'||k==='chdown'){const nr=clamp(r+(k==='chdown'?6:-6),0,G.rows.length-1);const c=cellAt(nr,G.time);if(c)setFocus(c);return true}
+  if(k==='chup'||k==='chdown'||k==='ff'||k==='rew'){const st=k==='ff'?50:k==='rew'?-50:k==='chdown'?6:-6;const nr=clamp(r+st,0,G.rows.length-1);const c=cellAt(nr,G.time);if(c)setFocus(c);return true}
+  if(k==='left'&&S.source==='xt'&&+FOC.dataset.s<=now()){openGroupPanel();return true}
   if(k==='left'||k==='right'){const cs=rowCells(r);const i=cs.indexOf(FOC);const nx=cs[i+(k==='right'?1:-1)];if(nx){G.dir=k;setFocus(nx);G.dir=null;G.time=Math.max(+nx.dataset.s,G.start+G.gx/G.PX*MIN)}return true}
   return false;
  }
 };
+function recentChans(){const L=chans(),out=[];for(const n of S.recent){const c=L.find(x=>x.num===n);if(c&&!out.includes(c))out.push(c)}return out}
+function guideGroups(){const L=chans(),cnt={};for(const c of L)cnt[c.xcat]=(cnt[c.xcat]||0)+1;const out=[];
+ if(LISTS.fav.length)out.push(['fav','★ Favourites',L.filter(c=>isFav(c.id)).length]);
+ const rc=recentChans();if(rc.length)out.push(['recent','⟲ Recent',rc.length]);
+ for(const c of XT.cats||[])if(cnt[c.id]&&!LISTS.hidc.includes(c.id))out.push([c.id,c.name,cnt[c.id]]);return out}
+function gName(k){return k==='fav'?'★ Favourites':k==='recent'?'⟲ Recent':((XT.cats||[]).find(c=>c.id===k)||{}).name||'Channels'}
+function gTabsXT(){return `<div class="tab f sel" data-a="gpanel">☰&nbsp; ${esc(gName(G.cat))}</div>${LISTS.fav.length&&G.cat!=='fav'?`<div class="tab f" data-a="gtab" data-x="fav">★ Favourites</div>`:''}${S.recent.length&&G.cat!=='recent'?`<div class="tab f" data-a="gtab" data-x="recent">⟲ Recent</div>`:''}<span class="gtab-hint">◀ from the live programme for all groups · Rew/FF jump 50</span>`}
+function openGroupPanel(){const items=guideGroups();
+ openModal(`<div class="gpanel"><h2>Channel groups</h2><p class="mut">${items.length} groups · OK to open · Ch± or Rew/FF to move faster</p><div class="gp-cols"><div class="vs gp-list"><div class="vs-in">${items.map(([k,n,c])=>`<div class="gp-item f${k===G.cat?' sel':''}" data-a="gpick" data-x="${esc(k)}"><span>${esc(n)}</span><small>${c}</small></div>`).join('')}</div></div>
+ <div class="gp-letters"><div class="gp-h">Jump to a letter in ${esc(gName(G.cat))}</div><div class="gp-kb">${'#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l=>`<div class="key f" data-a="gletter" data-x="${l}">${l}</div>`).join('')}</div></div></div></div>`,{focus:'.gp-item.sel'})}
+function guidePick(k){G.cat=k;G.picked=true;G.time=now();const tb=$('#gtabs');if(tb&&S.source==='xt')tb.innerHTML=gTabsXT();else $$('#gtabs .tab').forEach(t=>t.classList.toggle('sel',t.dataset.x===k));guideRows();const c=cellAt(0,G.time);if(c)setFocus(c)}
 function guideRows(){
- G.rows=G.cat==='fav'?chans().filter(c=>isFav(c.id)):chans().filter(c=>S.source==='xt'?c.xcat===G.cat:(G.cat==='all'||c.cat===G.cat));
+ G.rows=G.cat==='recent'?recentChans():G.cat==='fav'?chans().filter(c=>isFav(c.id)):chans().filter(c=>S.source==='xt'?c.xcat===G.cat:(G.cat==='all'||c.cat===G.cat));
  if(S.source==='xt')G.rows=G.rows.slice(0,250);
  const PX=G.PX,t=now();let th='';
  for(let x=G.start;x<G.end;x+=30*MIN){const d=new Date(x);th+=`<span style="left:${(x-G.start)/MIN*PX}px">${d.getHours()===0&&d.getMinutes()===0?`<b>${dayLbl(x)}</b>`:''}${fmtT(x)}</span>`}
@@ -1108,6 +1152,9 @@ const SETROWS=[
  ['spoiler','Spoiler Shield',()=>S.set.spoiler,'Hides every score — tiles, tickers, the in-picture scoreboard and Catch Me Up — until you choose to reveal a match.'],
  ['ambient','Ambient colour',()=>S.set.ambient,'The whole interface tints itself to match whatever you are focused on, like the glow behind a Sky Glass screen — but everywhere.'],
  ['preview','Live previews',()=>S.set.preview,'Live channels start playing silently behind the billboard after a second of focus.'],
+ ['countries','Countries',()=>{if(S.source!=='xt')return'—';const f=countriesFound(),sh=f.filter(([k])=>!LISTS.hidcty.includes(k)).length;return `${sh} of ${f.length} shown`},'Choose which countries\' channels appear. Show or hide each one, or hide them all in one go and switch on just the ones you watch.'],
+ ['merge','One entry per channel',()=>S.set.merge!==false,'When a channel is listed several times in different qualities (SD, HD, FHD, 4K), show it once. Pick another quality from the channel banner while watching.'],
+ ['qpref','Preferred quality',()=>({FHD:'Full HD',['4K']:'4K',HD:'HD',SD:'SD'}[S.set.qpref]||'Full HD'),'Which version plays when a channel comes in several qualities. Full HD is the best fit for Fire TV sticks; 4K needs a fast connection and a 4K box.'],
  ['nativeLive','Full-screen player for live TV',()=>S.set.nativeLive,'Plays live channels in the same full-screen player as films and episodes. PRIMO switches to it by itself if a channel won\'t play in the normal view. Turn this on to always use it — you lose Multiview and the on-screen extras.'],
  ['pip','Picture-in-Picture on Back',()=>S.set.pip,'Press Back while watching live TV and it shrinks into the corner so you can browse without missing anything.'],
  ['autoSurf','Auto-surf speed',()=>S.set.autoSurf+' sec','How long Channel Surf lingers on each channel when you lean back and let it flick for you.'],
@@ -1264,6 +1311,7 @@ function actsFor(){
  if(c.kind!=='channel')return[btn('vodRestart','restart','Restart'),btn('plist',inPl(c.parent?c.parent.id:c.id)?'check':'plus','Playlist'),btn('react','smile','React'),btn('sleep','moon',P.sleepAt?`Sleep ${fmtIn(P.sleepAt-now())}`:'Sleep'),btn('info','info','Info')];
  const p=curProg();const fv=isFav(c.id);const a=[btn('guide','guide','TV Guide'),btn('favCh',fv?'starf':'star',fv?'Favourite':'Favourite +',c.id,fv?'on':''),btn('multi','grid','Multiview'),btn('surf','surf','Surf')];
  a.push(P.ret?btn('bounceNow','bounce','Return now'):btn('bounce','bounce','Bounce Back'));
+ {const base=c.dupOf||c;if(base.alts&&base.alts.length>1)a.push(btn('quality','layout',`Quality · ${c.q||'Std'}`))}
  a.push(btn('catchup','spark','Catch me up'));
  if(P.shift)a.push(btn('golive','play','Go live'));else if(canCatch(p))a.push(btn('restart','restart','Restart'));
  a.push(btn('plist',p&&inPl(progKey(p))?'check':'plus','Playlist'),btn('react','smile','React'));
@@ -1346,6 +1394,8 @@ function recap(p,mins){
  if(p.match){const st=matchState(p),m=p.match;if(st.min<0)return['The build-up is still on — kick-off at '+fmtT(p.start+15*MIN)+'.','Team news: both sides at full strength.'];if(spoil(p))return['Spoiler Shield is on, so the goals stay hidden.',`It's ${st.label==='HT'?'half time':st.ft?'full time':st.min+' minutes in'} — and it's been end-to-end.`,'Reveal the score from the player when you are ready.'];
   const out=st.goals.map(g=>`${g.min}' — GOAL! ${g.who} scores for ${g.side?m.b.n:m.a.n}.`);if(!out.length)out.push(`No goals yet after ${st.min} minutes — ${pick(r,[m.a.n,m.b.n])} have had the better chances.`);out.push(`Score: ${m.a.n} ${st.sa}–${st.sb} ${m.b.n} · possession ${m.pos}%–${100-m.pos}%.`);return out}
  const key=p.ch.cat==='movie'?'movie':BEATMAP[p.pool]||(BEATS[p.pool]?p.pool:'generic');const B=BEATS[key];const n=clamp(1+Math.floor(mins/14),1,Math.min(4,B.length));const out=[];const used=new Set();while(out.length<n){const i=Math.floor(r()*B.length);if(used.has(i))continue;used.add(i);out.push(fillT(B[i],r))}return out}
+function openQuality(){const c=P.cur;if(!c||c.kind!=='channel')return;const base=c.dupOf||c;const L=base.alts||[c];
+ openModal(`<div class="mcard" style="width:900px"><div class="kick"><span class="pill">${IC.layout} QUALITY</span><span>${esc(base.name)}</span></div><h2>Choose a version</h2><p class="mut">Your provider lists this channel ${L.length} times. If one stutters, try a lower quality.</p><div class="plist hl" style="margin-top:18px">${L.map(x=>`<div class="st-row f" data-a="qpick" data-id="${x.id}"><span>${esc(x.q?({FHD:'Full HD',['4K']:'4K',HD:'HD',SD:'SD'})[x.q]:'Standard')} <small style="opacity:.55">· ${esc(x.name)}</small></span>${x===c?'<span class="pill live">PLAYING</span>':''}</div>`).join('')}</div></div>`,{focus:'[data-a="qpick"]'})}
 function openCatchup(){const p=curProg();if(!p){toast('Nothing to catch up on here');return}const mins=Math.max(1,Math.round((now()-p.start)/MIN)),left=Math.max(0,Math.round((p.end-now())/MIN)),nx=nextProg(p.ch,p);
  const fromStart=canCatch(p)?btn('cuStart','restart','Watch from the start',p.id):'';
  let body;
@@ -1406,6 +1456,13 @@ window.onUpdate=(st,m)=>{
  else if(st==='busy')toast('Already updating…','spark');
  else if(st==='error'){updMsg('');toast('Update failed: '+esc(m),'close')}
  UPD.asked=false};
+function openCountries(first){const f=countriesFound();
+ const rows=f.map(([k,n])=>{const h=LISTS.hidcty.includes(k);return `<div class="st-row f" data-a="ctyTog" data-x="${esc(k)}"><span>${esc(ctyName(k))}${k!=='OTHER'?` <small style="opacity:.5">${esc(k)}</small>`:''} <small style="opacity:.55">· ${n} channels</small></span><span class="hv" style="margin-left:auto;margin-right:14px;opacity:.7">${h?'Hidden':'Shown'}</span><span class="tg${h?'':' on'}"></span></div>`}).join('');
+ openModal(`<div class="mcard" style="width:1200px"><div class="kick"><span class="pill">${IC.tv} COUNTRIES</span></div><h2>${first?'Choose your countries':'Countries'}</h2><p class="mut">${first?'Your provider has channels from lots of countries. Hide the ones you don\'t watch — tip: press Hide all, then switch on just your own.':'Hidden countries disappear from the TV Guide, Home, Multiview, search and channel up/down.'}</p>
+ <div class="cty-top">${btn('ctyAll','eye','Show all')}${btn('ctyNone','close','Hide all')}${btn('closeModal','check','Done',null,'pri')}</div>
+ <div class="vs cty-list"><div class="vs-in">${rows||'<p class="mut">No countries found in your provider\'s groups.</p>'}</div></div></div>`,{focus:first?'[data-a="ctyNone"]':'.cty-list .f',onClose:()=>{if(['guide','home','multi','timeline','sports','movies','tv'].includes(S.view))go(S.view)}})}
+function ctyRefresh(){$$('#modal [data-a="ctyTog"]').forEach(el=>{const h=LISTS.hidcty.includes(el.dataset.x);el.querySelector('.tg').classList.toggle('on',!h);el.querySelector('.hv').textContent=h?'Hidden':'Shown'})}
+function maybeAskCountries(){if(S.source!=='xt')return;const f=countriesFound();if(f.length<2)return;const key=pk('ctyAsked'+listSuf());if(LS.get(key,false))return;LS.set(key,true);setTimeout(()=>{if(!modalOn())openCountries(true)},900)}
 function openHidden(){
  const groups=S.source==='xt'?XT.cats.map(c=>[c.id,c.name]):Object.entries(CATS).filter(([k])=>k!=='all');
  const cnt={};for(const c of CHANNELS){const g=grpOf(c);cnt[g]=(cnt[g]||0)+1}
@@ -1445,7 +1502,7 @@ function openLogin(){const L=getProvs();if(!L.length)return openProvForm(null);
  openModal(`<div class="mcard" style="width:1100px"><div class="kick"><span class="pill">${IC.tv} TV PROVIDERS</span></div><h2>Your providers</h2><p class="mut">Save as many Xtream logins as you like and switch between them. Each keeps its own Continue watching.</p>
  <div class="plist">${rows}</div><div class="mbtns">${btn('provAdd','plus','Add provider',null,L.length?'':'pri')}${btn('xtDemo','spark','Use demo channels')}</div><div class="xmsg" id="xmsg"></div></div>`,{focus:'.prow.on .btn, .prow .btn'})}
 async function useProv(c,msgEl){const m=msgEl||$('#xmsg');if(m){m.className='xmsg';m.textContent=`Connecting to ${provName(c)}…`}
- try{const r=await xtLoad(c);S.xtCreds=c;LS.set('xt',c);if(m){m.className='xmsg ok';m.textContent=`Connected to ${provName(c)} — ${r.ch} channels, ${r.mv} movies, ${r.sr} box sets.`}setTimeout(()=>{closeModal(true);go('home');toast(`${esc(provName(c))} · ${r.ch} channels`,'check')},700)}
+ try{const r=await xtLoad(c);S.xtCreds=c;LS.set('xt',c);if(m){m.className='xmsg ok';m.textContent=`Connected to ${provName(c)} — ${r.ch} channels, ${r.mv} movies, ${r.sr} box sets.`}setTimeout(()=>{closeModal(true);go('home');toast(`${esc(provName(c))} · ${r.ch} channels`,'check');maybeAskCountries()},700)}
  catch(e){if(m){m.className='xmsg';m.textContent=e.message}}}
 function openProvForm(id){const c=(id&&getProvs().find(x=>x.id===id))||{};openModal(`<div class="mcard" style="width:1000px"><div class="kick"><span class="pill">${IC.tv} PRIMO LOGIN</span></div><h2>${id?'Edit login':'Sign in to PRIMO'}</h2>
  <label class="inpw">Name (optional)<input class="inp f" data-a="inp" id="xn" placeholder="e.g. Main login" value="${esc(c.name||'')}"></label>
@@ -1469,8 +1526,8 @@ async function xtLoad(c){
  const t=now();ANCHOR=t-12*HR;END=t+36*HR;
  const gen=(XT.gen||0)+1;
  XT={gen,base,user:c.user,pass:c.pass,proxy:c.proxy,api,get,tz:(info.server_info&&info.server_info.timezone)||'',cats:arr(lc).map(x=>({id:String(x.category_id),name:x.category_name})),q:[],busy:0};
- arr(ls).forEach((s,i)=>{const cn=lcn[s.category_id]||'';const ch=reg({kind:'channel',id:'c'+s.stream_id,sid:s.stream_id,num:+s.num||i+1,name:s.name||'Channel',title:s.name||'Channel',cat:guessCat(cn+' '+(s.name||'')),xcat:String(s.category_id),hue:hash(s.name)%360,logo:s.stream_icon||'',epg:[],archive:String(s.tv_archive)==='1'?Math.max(1,+s.tv_archive_duration||1):0,url:`${base}/live/${U}/${Pw}/${s.stream_id}.m3u8`});ch.epg=[phProg(ch)];CHANNELS.push(ch)});
- CHANNELS.sort((a,b)=>a.num-b.num);
+ arr(ls).forEach((s,i)=>{const cn=lcn[s.category_id]||'';const ch=reg({kind:'channel',id:'c'+s.stream_id,sid:s.stream_id,num:+s.num||i+1,name:s.name||'Channel',title:s.name||'Channel',cat:guessCat(cn+' '+(s.name||'')),xcat:String(s.category_id),hue:hash(s.name)%360,logo:s.stream_icon||'',cty:ctyOf(cn)||ctyOf(s.name)||'OTHER',epg:[],archive:String(s.tv_archive)==='1'?Math.max(1,+s.tv_archive_duration||1):0,url:`${base}/live/${U}/${Pw}/${s.stream_id}.m3u8`});ch.epg=[phProg(ch)];CHANNELS.push(ch)});
+ CHANNELS.sort((a,b)=>a.num-b.num);mergeDupes();XT.cats.forEach(c=>c.cty=ctyOf(c.name)||'OTHER');
  vodP.then(async([vc,vs,scat,ss])=>{if(XT.gen!==gen)return;const vcn={},scn={};arr(vc).forEach(x=>vcn[x.category_id]=x.category_name);arr(scat).forEach(x=>scn[x.category_id]=x.category_name);
   // build in small batches so the remote never freezes while a big library loads
   const chunked=async(list,fn,out)=>{for(let i=0;i<list.length;i+=2500){if(XT.gen!==gen)return false;for(const x of list.slice(i,i+2500))out.push(fn(x));await new Promise(r=>setTimeout(r,0))}return true};
@@ -1511,7 +1568,15 @@ const ACT={
   if(o.kind==='prog'){if(isLive(o))return playChannel(o.ch);if(o.end<=now())return playChannel(o.ch,{shift:now()-o.start});toggleRem(o.id);return bbSet(o,true)}
   if(o.kind==='movie')return playVod(o);if(o.kind==='series'){if(o.xt)return openDetails(o);const e=epsOf(o);return playVod(S.cont?.[o.id]?e[1]:e[0])}openItem(o)},
  gcell:el=>{const p=REG[el.dataset.id];if(!p)return;if(isLive(p))playChannel(p.ch);else if(p.end<=now())openDetails(p);else openDetails(p)},
- gtab:el=>{G.cat=el.dataset.x;$$('#gtabs .tab').forEach(t=>t.classList.toggle('sel',t===el));G.time=now();guideRows()},
+ gtab:el=>{if(S.source==='xt')return guidePick(el.dataset.x);G.cat=el.dataset.x;$$('#gtabs .tab').forEach(t=>t.classList.toggle('sel',t===el));G.time=now();guideRows()},
+ gpanel:()=>openGroupPanel(),
+ gpick:el=>{closeModal(true);guidePick(el.dataset.x)},
+ gletter:el=>{const l=el.dataset.x;const i=G.rows.findIndex(c=>{const ch=(baseName(c.name)[0]||'');return l==='#'?/[0-9]/.test(ch):ch===l.toLowerCase()});if(i<0){toast(`No channels starting with ${l} in ${esc(gName(G.cat))}`,'close');return}closeModal(true);const c=cellAt(i,G.time);if(c)setFocus(c)},
+ ctyTog:el=>{toggleIn(LISTS.hidcty,el.dataset.x);saveLists();ctyRefresh()},
+ ctyAll:()=>{LISTS.hidcty=[];saveLists();ctyRefresh();toast('All countries shown','eye')},
+ ctyNone:()=>{LISTS.hidcty=countriesFound().map(([k])=>k);saveLists();ctyRefresh();toast('All countries hidden — switch on the ones you want','close');const f=$('#modal .cty-list .f');if(f)setFocus(f)},
+ quality:()=>openQuality(),
+ qpick:el=>{const ch=REG[el.dataset.id];closeModal(true);if(ch)playChannel(ch,{quiet:true})},
  tmslot:()=>{const c=$('#tmgrid .f');if(c)setFocus(c)},
  tmf:el=>{TM.cat=el.dataset.x;$$('.tm-filters .chip').forEach(c=>c.classList.toggle('on',c===el));tmCards()},
  mvTile:el=>playChannel(mvCh(+el.dataset.x)),
@@ -1523,6 +1588,9 @@ const ACT={
  set:el=>{const k=el.dataset.x;
   if(k==='update'){UPD.asked=true;checkUpd(true);return}
   if(k==='hidden')return openHidden();
+  if(k==='countries')return S.source==='xt'?openCountries():toast('Countries come from your provider — sign in first','tv');
+  if(k==='qpref'){const o=['FHD','4K','HD','SD'];S.set.qpref=o[(o.indexOf(S.set.qpref)+1)%o.length];save();if(S.source==='xt')mergeDupes();return go('settings',{focus:'[data-x="qpref"]'})}
+  if(k==='merge'){S.set.merge=S.set.merge===false;save();CHC.k='';return go('settings',{focus:'[data-x="merge"]'})}
   if(k==='profile')return openProfiles();if(k==='frame')return frameStart();if(k==='source')return openLogin();
   if(k==='reset'){try{Object.keys(localStorage).filter(x=>x.startsWith('primo_')).forEach(x=>localStorage.removeItem(x))}catch(e){}S.playlist=[];S.reminders=[];S.recent=[];S.cont=null;genDemoIfDemo();toast('Demo data reset','restart');return go('settings',{focus:'[data-x="reset"]'})}
   if(k==='autoSurf'){const o=[4,6,10,15];S.set.autoSurf=o[(o.indexOf(S.set.autoSurf)+1)%o.length]}else S.set[k]=!S.set[k];
@@ -1544,7 +1612,7 @@ const ACT={
  pin:el=>{const n=el.dataset.x;if(n==='⌫')PIN=PIN.slice(0,-1);else PIN+=n;$$('#pins i').forEach((d,i)=>d.classList.toggle('on',i<PIN.length));if(PIN.length===4){if(PIN==='1234')setProfile(el.dataset.t);else{PIN='';$$('#pins i').forEach(d=>d.classList.remove('on'));toast('Wrong PIN','close')}}},
  inp:el=>{el.focus();try{el.setSelectionRange(el.value.length,el.value.length)}catch(e){}},
  xtGo:async()=>{const id=$('#xid').value;const c={id:id||'p'+Date.now().toString(36),name:$('#xn').value.trim(),server:SERVER,user:$('#xu').value.trim(),pass:$('#xp').value,proxy:''};const m=$('#xmsg');m.className='xmsg';m.textContent='Connecting…';
-  try{const r=await xtLoad(c);const L=getProvs();const i=L.findIndex(x=>x.id===c.id);if(i>=0)L[i]=c;else L.push(c);setProvs(L);S.xtCreds=c;LS.set('xt',c);m.className='xmsg ok';m.textContent=`Connected — ${r.ch} channels, ${r.mv} movies, ${r.sr} box sets.`;setTimeout(()=>{closeModal(true);go('home');toast(`${esc(provName(c))} · ${r.ch} channels`,'check')},700)}
+  try{const r=await xtLoad(c);const L=getProvs();const i=L.findIndex(x=>x.id===c.id);if(i>=0)L[i]=c;else L.push(c);setProvs(L);S.xtCreds=c;LS.set('xt',c);m.className='xmsg ok';m.textContent=`Connected — ${r.ch} channels. Films and box sets are loading…`;setTimeout(()=>{closeModal(true);go('home');toast(`${esc(provName(c))} · ${r.ch} channels`,'check');maybeAskCountries()},700)}
   catch(e){m.className='xmsg';m.innerHTML=esc(e.message)+(location.hostname.includes('claude')||window.top!==window?'<br><span style="color:#ffffffa0">Note: the Claude preview blocks connections to outside servers. Host this file yourself (e.g. on Vercel) to connect a real provider.</span>':'')}},
  provUse:el=>{const c=getProvs().find(x=>x.id===el.dataset.x);if(c)useProv(c)},
  provEdit:el=>openProvForm(el.dataset.x),
@@ -1603,6 +1671,7 @@ function keyName(e){const k=e.key,c=e.keyCode;
  if(k==='Escape'||k==='Backspace'||k==='GoBack'||k==='BrowserBack'||c===4||c===461||c===10009||c===27||c===8)return'back';
  if(k==='PageUp'||k==='ChannelUp'||c===33||c===427)return'chup';if(k==='PageDown'||k==='ChannelDown'||c===34||c===428)return'chdown';
  if(k==='MediaPlayPause'||k==='MediaPlay'||c===179||c===85||c===415||k==='p'||k==='P')return'play';
+ if(k==='MediaFastForward'||c===228||c===417)return'ff';if(k==='MediaRewind'||c===227||c===412)return'rew';
  if(/^[0-9]$/.test(k))return'd'+k;return null}
 document.addEventListener('keydown',e=>{
  lastAct=now();lastKey=now();const ae=document.activeElement,inInput=ae&&/INPUT|TEXTAREA/.test(ae.tagName);
@@ -1619,14 +1688,15 @@ let KPEND=null;
 function handle(k){
  if(k[0]==='d'&&k.length===2)return digit(k[1]);
  if(k==='guide'){if(frameOn)frameOff();if(SURF.open)surfClose(true);if(modalOn())closeModal(true);if(P.open&&!P.pip)minimize();return go('guide')}
- if(modalOn()){if(k==='back')return closeModal();if(k==='enter')return activate(FOC);if(DIRS[k])return move(k);return}
+ if(modalOn()){if(k==='back')return closeModal();if(k==='enter')return activate(FOC);if(DIRS[k])return move(k);if(k==='chup'||k==='chdown'||k==='ff'||k==='rew'){const d=(k==='chdown'||k==='ff')?'down':'up';for(let i=0;i<(k==='ff'||k==='rew'?16:8);i++)move(d)}return}
  if(SURF.open)return surfKey(k);
- if(P.open&&!P.pip)return playerKey(k);
+ if(P.open&&!P.pip)return playerKey(k==='ff'?'right':k==='rew'?'left':k);
  if(k==='play'){if(P.pip)return pipExpand();return}
  if(k==='chup'||k==='chdown'){if(V[S.view]?.key?.(k))return;if(P.pip){pipExpand();zap(k==='chup'?1:-1)}return}
  if(k==='back')return back();
  if(k==='enter')return activate(FOC);
  if(V[S.view]?.key?.(k))return;
+ if(k==='ff'||k==='rew'){for(let i=0;i<8;i++)move(k==='ff'?'down':'up');return}
  if(DIRS[k])move(k);
 }
 function back(){if($('#view').contains(FOC)){setFocus($('#top .nv.cur')||$('#top .nvs'));return}if(S.view!=='home'){go('home',{keepTop:true});return}if(P.pip)return pipClose();if(window.Android)openModal(`<div class="mcard" style="width:720px"><h2>Leave PRIMO?</h2><p class="mut">Your settings, playlist and provider login are saved.</p><div class="mbtns">${btn('closeModal','tv','Keep watching',null,'pri')}${btn('appExit','close','Exit')}</div></div>`)}
@@ -1658,7 +1728,7 @@ addEventListener('resize',fit);fit();
 try{if(window.top===window){history.pushState({n:1},'');addEventListener('popstate',()=>{handle('back');history.pushState({n:1},'')})}}catch(e){}
 genDemo();
 go('home');
-getProvs();if(S.xtCreds&&S.xtCreds.server){toast(`Connecting to ${esc(provName(S.xtCreds))}…`,'tv');xtLoad(S.xtCreds).then(r=>{go('home');toast(`Provider connected · ${r.ch} channels`,'check')}).catch(e=>{S.source='demo';genDemo();go('home');toast('Couldn\'t reach your provider — showing demo channels. Settings → TV provider to retry.','close')})}
+getProvs();if(S.xtCreds&&S.xtCreds.server){toast(`Connecting to ${esc(provName(S.xtCreds))}…`,'tv');xtLoad(S.xtCreds).then(r=>{go('home');toast(`Provider connected · ${r.ch} channels`,'check');maybeAskCountries()}).catch(e=>{S.source='demo';genDemo();go('home');toast('Couldn\'t reach your provider — showing demo channels. Settings → TV provider to retry.','close')})}
 else if(window.Android)setTimeout(()=>{if(!modalOn())openLogin()},1200);
 setTimeout(()=>{if(window.Android&&Android.checkUpdate)Android.checkUpdate(false)},8000);
 if(S.set.askProfile&&Object.keys(PROF).length>1)setTimeout(()=>{if(!modalOn())openProfiles()},1500);

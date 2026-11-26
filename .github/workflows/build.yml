@@ -415,8 +415,8 @@ jobs:
                       case KeyEvent.KEYCODE_PAGE_UP: k = "chup"; break;
                       case KeyEvent.KEYCODE_CHANNEL_DOWN:
                       case KeyEvent.KEYCODE_PAGE_DOWN: k = "chdown"; break;
-                      case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: k = "right"; break;
-                      case KeyEvent.KEYCODE_MEDIA_REWIND: k = "left"; break;
+                      case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: k = "ff"; break;
+                      case KeyEvent.KEYCODE_MEDIA_REWIND: k = "rew"; break;
                       case KeyEvent.KEYCODE_GUIDE: k = "guide"; break;
                       default: break;
                   }
