@@ -352,6 +352,10 @@ nav{display:flex;gap:2px}
 
 /* TV boxes: drop the frosted-glass blur, which their GPUs redraw slowly on every change */
 .tvbox *{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+.t.grp{width:300px;height:170px;padding:20px 22px;display:flex;flex-direction:column;justify-content:flex-end;border:1px solid #ffffff1c}
+.t.grp b{font-size:24px;font-weight:800;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.t.grp span{font-size:17px;color:#ffffffb0;margin-top:6px}
+.t.grp .gi{position:absolute;top:18px;left:20px;width:44px;height:44px;border-radius:14px;background:#ffffff22;display:grid;place-items:center}.t.grp .gi svg{width:24px;height:24px}
 .gpanel{position:absolute;left:0;top:0;bottom:0;width:980px;background:linear-gradient(90deg,#0b0e26fa,#0b0e26f0);padding:44px 40px 0 90px;box-shadow:30px 0 80px #000b;border-right:1px solid #ffffff1a}
 .gpanel h2{font-size:40px;font-weight:900}.gpanel .mut{font-size:19px;color:#ffffffa0;margin-top:6px}
 .gp-cols{position:absolute;top:150px;bottom:30px;left:90px;right:40px;display:flex;gap:34px}
@@ -1004,9 +1008,17 @@ function guideGroups(){const L=chans(),cnt={};for(const c of L)cnt[c.xcat]=(cnt[
  for(const c of XT.cats||[])if(cnt[c.id]&&!LISTS.hidc.includes(c.id))out.push([c.id,c.name,cnt[c.id]]);return out}
 function gName(k){return k==='fav'?'★ Favourites':k==='recent'?'⟲ Recent':((XT.cats||[]).find(c=>c.id===k)||{}).name||'Channels'}
 function gTabsXT(){return `<div class="tab f sel" data-a="gpanel">☰&nbsp; ${esc(gName(G.cat))}</div>${LISTS.fav.length&&G.cat!=='fav'?`<div class="tab f" data-a="gtab" data-x="fav">★ Favourites</div>`:''}${S.recent.length&&G.cat!=='recent'?`<div class="tab f" data-a="gtab" data-x="recent">⟲ Recent</div>`:''}<span class="gtab-hint">◀ from the live programme for all groups · Rew/FF jump 50</span>`}
-function openGroupPanel(){const items=guideGroups();
- openModal(`<div class="gpanel"><h2>Channel groups</h2><p class="mut">${items.length} groups · OK to open · Ch± or Rew/FF to move faster</p><div class="gp-cols"><div class="vs gp-list"><div class="vs-in">${items.map(([k,n,c])=>`<div class="gp-item f${k===G.cat?' sel':''}" data-a="gpick" data-x="${esc(k)}"><span>${esc(n)}</span><small>${c}</small></div>`).join('')}</div></div>
- <div class="gp-letters"><div class="gp-h">Jump to a letter in ${esc(gName(G.cat))}</div><div class="gp-kb">${'#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l=>`<div class="key f" data-a="gletter" data-x="${l}">${l}</div>`).join('')}</div></div></div></div>`,{focus:'.gp-item.sel'})}
+const GP={mode:'guide',grp:null};
+function gpLetters(label){return `<div class="gp-letters"><div class="gp-h">Jump to a letter${label?' in '+esc(label):''}</div><div class="gp-kb">${'#ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l=>`<div class="key f" data-a="gletter" data-x="${l}">${l}</div>`).join('')}</div></div>`}
+function openGroupPanel(mode){GP.mode=mode||'guide';GP.grp=null;const items=guideGroups();const cur=GP.mode==='guide'?G.cat:(P.cur&&P.cur.kind==='channel'?(P.cur.dupOf||P.cur).xcat:G.cat);
+ const list=items.map(([k,n,c])=>`<div class="gp-item f${k===cur?' sel':''}" data-a="gpick" data-x="${esc(k)}"><span>${esc(n)}</span><small>${c}</small></div>`).join('');
+ const sub=GP.mode==='watch'?'Pick a group, then a channel to watch':GP.mode==='home'?'Pick a group to open it in the TV Guide':'OK to open';
+ openModal(`<div class="gpanel"><h2 id="gph">Channel groups</h2><p class="mut" id="gps">${items.length} groups · ${sub} · Ch± or Rew/FF to move faster</p><div class="gp-cols"><div class="vs gp-list" id="gpl"><div class="vs-in">${list}</div></div>${GP.mode==='guide'?gpLetters(gName(G.cat)):'<div class="gp-letters" id="gplet"></div>'}</div></div>`,{focus:items.some(([k])=>k===cur)?'.gp-item.sel':'.gp-item'})}
+function gpChannels(k){GP.grp=k;const L=k==='recent'?recentChans():k==='fav'?chans().filter(c=>isFav(c.id)):chans().filter(c=>c.xcat===k);const playing=P.cur&&(P.cur.dupOf||P.cur);
+ $('#gph').textContent=gName(k);$('#gps').textContent=`${L.length} channels · OK to watch`;
+ const vi=$('#gpl .vs-in');vi.innerHTML=`<div class="gp-item f" data-a="gback"><span>◀ All groups</span></div>`+L.slice(0,600).map(c=>{const pr=liveProg(c);return `<div class="gp-item f${c===playing?' sel':''}" data-a="gchan" data-id="${c.id}"><span>${c.num} &nbsp;${esc(c.name)}</span><small>${esc(pr&&!pr.ph?pr.title:'')}</small></div>`}).join('');
+ vi.dataset.y=0;vi.style.transform='none';$('#gplet').innerHTML=gpLetters(gName(k)).replace(/^<div class="gp-letters">|<\/div>$/g,'');
+ setFocus($('#gpl .gp-item.sel')||$('#gpl [data-a="gchan"]')||$('#gpl .gp-item'))}
 function guidePick(k){G.cat=k;G.picked=true;G.time=now();const tb=$('#gtabs');if(tb&&S.source==='xt')tb.innerHTML=gTabsXT();else $$('#gtabs .tab').forEach(t=>t.classList.toggle('sel',t.dataset.x===k));guideRows();const c=cellAt(0,G.time);if(c)setFocus(c)}
 function guideRows(){
  G.rows=G.cat==='recent'?recentChans():G.cat==='fav'?chans().filter(c=>isFav(c.id)):chans().filter(c=>S.source==='xt'?c.xcat===G.cat:(G.cat==='all'||c.cat===G.cat));
@@ -1309,7 +1321,7 @@ function curProg(){return P.cur&&P.cur.kind==='channel'?liveProg(P.cur):null}
 function actsFor(){
  const c=P.cur;if(!c)return[];
  if(c.kind!=='channel')return[btn('vodRestart','restart','Restart'),btn('plist',inPl(c.parent?c.parent.id:c.id)?'check':'plus','Playlist'),btn('react','smile','React'),btn('sleep','moon',P.sleepAt?`Sleep ${fmtIn(P.sleepAt-now())}`:'Sleep'),btn('info','info','Info')];
- const p=curProg();const fv=isFav(c.id);const a=[btn('guide','guide','TV Guide'),btn('favCh',fv?'starf':'star',fv?'Favourite':'Favourite +',c.id,fv?'on':''),btn('multi','grid','Multiview'),btn('surf','surf','Surf')];
+ const p=curProg();const fv=isFav(c.id);const a=[btn('guide','guide','TV Guide'),...(S.source==='xt'?[btn('chlist','grid','Channels')]:[]),btn('favCh',fv?'starf':'star',fv?'Favourite':'Favourite +',c.id,fv?'on':''),btn('multi','grid','Multiview'),btn('surf','surf','Surf')];
  a.push(P.ret?btn('bounceNow','bounce','Return now'):btn('bounce','bounce','Bounce Back'));
  {const base=c.dupOf||c;if(base.alts&&base.alts.length>1)a.push(btn('quality','layout',`Quality · ${c.q||'Std'}`))}
  a.push(btn('catchup','spark','Catch me up'));
@@ -1543,8 +1555,8 @@ function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++
 const EPGDIRTY=new Set();let epgT;function epgRefresh(ch){if(ch)EPGDIRTY.add(ch);clearTimeout(epgT);epgT=setTimeout(()=>{if(S.view!=='guide'){EPGDIRTY.clear();return}const fr=FOC&&FOC.classList.contains('gc')?+FOC.dataset.r:null;let refocus=false;
  for(const c of EPGDIRTY){const i=G.rows.indexOf(c);if(i<0)continue;const row=$$('#grows .g-row')[i];if(!row)continue;row.innerHTML=guideCells(c,i);if(i===fr)refocus=true}EPGDIRTY.clear();
  if(refocus&&!modalOn()){const c=cellAt(fr,G.time);if(c){FOC=null;setFocus(c)}}},250)}
-function xtRails(){const r=[];r.push(rail('Continue watching',contItems().map(([o,v])=>tile(o,{prog:v}))));r.push(rail('Favourite channels',chans().filter(c=>isFav(c.id)).map(c=>tile(c))));const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched',rc.map(c=>tile(c))));r.push(rail(`Primo superpowers`,POWERS.filter(p=>!['pw_catch','pw_spoil'].includes(p.id)).map(powerTile)));
- XT.cats.filter(c=>!LISTS.hidc.includes(c.id)).slice(0,6).forEach(c=>r.push(rail(esc(c.name),chans().filter(x=>x.xcat===c.id).slice(0,20).map(x=>tile(x)))));r.push(rail('Movies',MOVIES.slice(0,30).slice(0,RAIL_MAX).map(m=>poster(m))));r.push(rail('Box sets',SERIES.slice(0,30).slice(0,RAIL_MAX).map(s=>poster(s))));return r.filter(Boolean)}
+function xtRails(){const r=[];r.push(rail('Continue watching',contItems().map(([o,v])=>tile(o,{prog:v}))));r.push(rail('Favourite channels',chans().filter(c=>isFav(c.id)).map(c=>tile(c))));const rc=S.recent.map(n=>CHANNELS.find(c=>c.num===n)).filter(Boolean);r.push(rail('Recently watched',rc.map(c=>tile(c))));{const gg=guideGroups().filter(([k])=>k!=='fav'&&k!=='recent');if(gg.length)r.push(rail('Channel groups',[`<div class="t f grp" data-a="gpanelHome" style="background:linear-gradient(140deg,#3b4cff66,#0b0e26)"><div class="gi">${IC.guide}</div><b>All groups</b><span>${gg.length} groups · A–Z</span></div>`,...gg.slice(0,30).map(([k,n,c])=>{const h=hash(n)%360;return `<div class="t f grp" data-a="homeGroup" data-x="${esc(k)}" style="background:radial-gradient(circle at 85% 0%,hsl(${h} 80% 55% / .45),transparent 60%),linear-gradient(150deg,hsl(${h} 45% 20%),#0b0e26)"><b>${esc(n)}</b><span>${c} channel${c===1?'':'s'}</span></div>`})],'OK opens it in the TV Guide'))}r.push(rail(`Primo superpowers`,POWERS.filter(p=>!['pw_catch','pw_spoil'].includes(p.id)).map(powerTile)));
+ guideGroups().filter(([k])=>k!=='fav'&&k!=='recent').slice(0,6).forEach(([k,n])=>r.push(rail(esc(n),chans().filter(x=>x.xcat===k).slice(0,20).map(x=>tile(x)))));r.push(rail('Movies',MOVIES.slice(0,30).slice(0,RAIL_MAX).map(m=>poster(m))));r.push(rail('Box sets',SERIES.slice(0,30).slice(0,RAIL_MAX).map(s=>poster(s))));return r.filter(Boolean)}
 async function xtSeriesEps(s){if(s.epList)return s.epList;const j=await XT.get(XT.api(`get_series_info&series_id=${s.sid}`));let seasons=(j&&j.episodes)||{};if(Array.isArray(seasons)){const o={};seasons.forEach((l,i)=>{if(Array.isArray(l)&&l.length)o[l[0].season||i+1]=l});seasons=o}
  const U=encodeURIComponent(XT.user),Pw=encodeURIComponent(XT.pass),out=[];
  Object.keys(seasons).sort((a,b)=>a-b).forEach(sn=>(seasons[sn]||[]).forEach((e,i)=>{const n=e.episode_num||i+1,inf=e.info||{};out.push(reg({kind:'ep',id:`${s.id}_e${e.id}`,parent:s,title:e.title||`Episode ${n}`,se:`S${sn} E${n}`,hue:(s.hue+out.length*9)%360,motif:s.motif,font:s.font,genre:s.genre,mins:Math.round((+inf.duration_secs||0)/60),desc:inf.plot||s.desc||'',img:inf.movie_image||s.img||'',url:`${XT.base}/series/${U}/${Pw}/${e.id}.${e.container_extension||'mp4'}`}))}));
@@ -1570,8 +1582,13 @@ const ACT={
  gcell:el=>{const p=REG[el.dataset.id];if(!p)return;if(isLive(p))playChannel(p.ch);else if(p.end<=now())openDetails(p);else openDetails(p)},
  gtab:el=>{if(S.source==='xt')return guidePick(el.dataset.x);G.cat=el.dataset.x;$$('#gtabs .tab').forEach(t=>t.classList.toggle('sel',t===el));G.time=now();guideRows()},
  gpanel:()=>openGroupPanel(),
- gpick:el=>{closeModal(true);guidePick(el.dataset.x)},
- gletter:el=>{const l=el.dataset.x;const i=G.rows.findIndex(c=>{const ch=(baseName(c.name)[0]||'');return l==='#'?/[0-9]/.test(ch):ch===l.toLowerCase()});if(i<0){toast(`No channels starting with ${l} in ${esc(gName(G.cat))}`,'close');return}closeModal(true);const c=cellAt(i,G.time);if(c)setFocus(c)},
+ gpick:el=>{const k=el.dataset.x;if(GP.mode==='watch')return gpChannels(k);closeModal(true);if(GP.mode==='home'){G.cat=k;G.picked=true;return go('guide')}guidePick(k)},
+ gback:()=>openGroupPanel(GP.mode),
+ gchan:el=>{const ch=REG[el.dataset.id];closeModal(true);if(ch)playChannel(ch,{quiet:true})},
+ chlist:()=>openGroupPanel('watch'),
+ homeGroup:el=>{G.cat=el.dataset.x;G.picked=true;go('guide')},
+ gpanelHome:()=>openGroupPanel('home'),
+ gletter:el=>{const l=el.dataset.x;if(GP.mode!=='guide'){const items=$$('#gpl [data-a="gchan"]');const t=items.find(it=>{const c=REG[it.dataset.id];const ch=(baseName(c&&c.name)[0]||'');return l==='#'?/[0-9]/.test(ch):ch===l.toLowerCase()});if(t)setFocus(t);else toast(`No channels starting with ${l}`,'close');return}const i=G.rows.findIndex(c=>{const ch=(baseName(c.name)[0]||'');return l==='#'?/[0-9]/.test(ch):ch===l.toLowerCase()});if(i<0){toast(`No channels starting with ${l} in ${esc(gName(G.cat))}`,'close');return}closeModal(true);const c=cellAt(i,G.time);if(c)setFocus(c)},
  ctyTog:el=>{toggleIn(LISTS.hidcty,el.dataset.x);saveLists();ctyRefresh()},
  ctyAll:()=>{LISTS.hidcty=[];saveLists();ctyRefresh();toast('All countries shown','eye')},
  ctyNone:()=>{LISTS.hidcty=countriesFound().map(([k])=>k);saveLists();ctyRefresh();toast('All countries hidden — switch on the ones you want','close');const f=$('#modal .cty-list .f');if(f)setFocus(f)},
