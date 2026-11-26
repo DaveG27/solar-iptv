@@ -1260,6 +1260,7 @@ const SETROWS=[
  ['frame','Start Frame Mode',()=>'','Turn the TV into ambient art with a clock and glanceable info. It also starts by itself after 3 minutes idle.'],
  ['source','PRIMO logins',()=>S.source==='xt'&&S.xtCreds?provName(S.xtCreds)+(getProvs().length>1?` · ${getProvs().length} saved`:''):'Demo content','Sign in with your PRIMO username and password. You can save more than one login and switch between them.'],
  ['hidden','Hidden channels & groups',()=>`${LISTS.hid.length} channel${LISTS.hid.length===1?'':'s'} · ${LISTS.hidc.length} group${LISTS.hidc.length===1?'':'s'}`,'Hide whole channel groups you never watch, or bring back channels you hid. To hide one channel, open its Info and choose Hide channel. Favourites show in the TV Guide and on Home.'],
+ ['sub','My subscription',()=>subLabel(),'Your account, expiry date, days left and how many connections are in use. Press OK for the details.'],
  ['epg','Refresh TV guide',()=>XT.epgLast?'Updated '+fmtT(XT.epgLast):'—','Fetches fresh listings from your provider. PRIMO also refreshes each channel by itself every few hours while it\'s open. Press OK to refresh now.'],
  ['update','Update PRIMO',()=>UPD.msg||('v'+(window.Android&&Android.versionName?Android.versionName():'web')),'Checks for a newer PRIMO and installs it over the top. Your providers, profiles and settings stay.'],
  ['reset','Reset demo data',()=>'','Clears your playlist, reminders, recently watched and settings on this device.'],
@@ -1568,7 +1569,21 @@ function openCountries(first){const f=countriesFound();
  <div class="cty-top">${btn('ctyAll','eye','Show all')}${btn('ctyNone','close','Hide all')}${btn('closeModal','check','Done',null,'pri')}</div>
  <div class="vs cty-list"><div class="vs-in">${rows||'<p class="mut">No countries found in your provider\'s groups.</p>'}</div></div></div>`,{focus:first?'[data-a="ctyNone"]':'.cty-list .f',onClose:()=>{if(['guide','home','multi','timeline','sports','movies','tv'].includes(S.view))go(S.view)}})}
 function ctyRefresh(){$$('#modal [data-a="ctyTog"]').forEach(el=>{const h=LISTS.hidcty.includes(el.dataset.x);el.querySelector('.tg').classList.toggle('on',!h);el.querySelector('.hv').textContent=h?'Hidden':'Shown'})}
-function maybeAskCountries(){if(S.source!=='xt')return;const f=countriesFound();if(f.length<2)return;const key=pk('ctyAsked'+listSuf());if(LS.get(key,false))return;LS.set(key,true);setTimeout(()=>{if(!modalOn())openCountries(true)},900)}
+function maybeAskCountries(){if(S.source!=='xt')return;subWarn();const f=countriesFound();if(f.length<2)return;const key=pk('ctyAsked'+listSuf());if(LS.get(key,false))return;LS.set(key,true);setTimeout(()=>{if(!modalOn())openCountries(true)},900)}
+/* subscription details (from the provider's user_info) */
+function subInfo(){const u=XT.info;if(!u)return null;const exp=+u.exp_date>0?+u.exp_date*1000:0,days=exp?Math.ceil((exp-Date.now())/864e5):null;
+ const st=String(u.status||'').toLowerCase();return{user:u.username||XT.user,status:exp&&exp<Date.now()?'Expired':st==='active'?'Active':(u.status||'—'),exp,days,trial:String(u.is_trial)==='1',max:+u.max_connections||0,act:+u.active_cons||0,since:+u.created_at>0?+u.created_at*1000:0}}
+const fmtD=t=>new Date(t).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+function subLabel(){const i=subInfo();if(!i)return S.source==='xt'?'—':'Sign in to a provider';if(i.status==='Expired')return 'Expired';if(!i.exp)return 'No expiry';return i.days<=1?'Expires today':`${i.days} days left`}
+function openSub(){const i=subInfo();if(!i){toast('Sign in to your provider to see your subscription','close');return}
+ const warn=i.status==='Expired'?'#ff5b6e':i.exp&&i.days<=7?'#ffb84d':'#3fdc8a';
+ const row=(k,v)=>`<div class="st-row"><span>${k}</span><span style="margin-left:auto;font-weight:800">${v}</span></div>`;
+ openModal(`<div class="mcard" style="width:900px"><h2>My subscription</h2><p class="mut">Details from your provider. Connections update when you press Refresh.</p>
+ <div class="plist" style="margin-top:16px">${row('Account',esc(i.user))}${row('Status',`<span style="color:${warn}">● ${esc(i.status)}${i.trial?' · Trial':''}</span>`)}${row('Expires',i.exp?`${fmtD(i.exp)} <span style="opacity:.6;font-weight:600">· ${i.days>0?i.days+' day'+(i.days===1?'':'s')+' left':'ended'}</span>`:'Never')}${row('Connections',i.max?`${i.act} in use of ${i.max}`:(i.act?i.act+' in use':'—'))}${i.since?row('Member since',fmtD(i.since)):''}</div>
+ <div class="mbtns">${btn('subRefresh','guide','Refresh')}${btn('subDone','check','Done',null,'pri')}</div></div>`,{focus:'[data-a="subDone"]'})}
+async function subRefresh(){if(!XT.get)return;try{const j=await XT.get(XT.api(''));if(j&&j.user_info){XT.info=j.user_info;XT.infoAt=Date.now()}}catch(e){toast("Couldn't reach your provider",'close');return}closeModal(true);openSub()}
+function subWarn(){const i=subInfo();if(!i||!i.exp)return;const k=pk('subWarn'+new Date().toDateString());if(LS.get(k,false))return;
+ if(i.status==='Expired'||i.days<=7){LS.set(k,true);setTimeout(()=>toast(i.status==='Expired'?'Your subscription has expired — Settings › My subscription':`Your subscription ends in ${i.days} day${i.days===1?'':'s'} (${fmtD(i.exp)})`,'guide'),4000)}}
 function openHidden(){
  const groups=S.source==='xt'?XT.cats.map(c=>[c.id,c.name]):Object.entries(CATS).filter(([k])=>k!=='all');
  const cnt={};for(const c of CHANNELS){const g=grpOf(c);cnt[g]=(cnt[g]||0)+1}
@@ -1631,7 +1646,7 @@ async function xtLoad(c){
  REG={};CHANNELS=[];MOVIES=[];SERIES=[];Object.keys(ART).forEach(k=>delete ART[k]);
  const t=now();ANCHOR=t-12*HR;END=t+36*HR;
  const gen=(XT.gen||0)+1;
- XT={gen,base,user:c.user,pass:c.pass,proxy:c.proxy,api,get,tz:(info.server_info&&info.server_info.timezone)||'',cats:arr(lc).map(x=>({id:String(x.category_id),name:x.category_name})),q:[],busy:0};
+ XT={gen,base,user:c.user,pass:c.pass,proxy:c.proxy,api,get,info:info.user_info,infoAt:Date.now(),tz:(info.server_info&&info.server_info.timezone)||'',cats:arr(lc).map(x=>({id:String(x.category_id),name:x.category_name})),q:[],busy:0};
  arr(ls).forEach((s,i)=>{const cn=lcn[s.category_id]||'';const ch=reg({kind:'channel',id:'c'+s.stream_id,sid:s.stream_id,num:+s.num||i+1,name:s.name||'Channel',title:s.name||'Channel',cat:guessCat(cn+' '+(s.name||'')),xcat:String(s.category_id),hue:hash(s.name)%360,logo:s.stream_icon||'',cty:ctyOf(cn)||ctyOf(s.name)||'OTHER',epg:[],archive:String(s.tv_archive)==='1'?Math.max(1,+s.tv_archive_duration||1):0,url:`${base}/live/${U}/${Pw}/${s.stream_id}.m3u8`});ch.epg=[phProg(ch)];CHANNELS.push(ch)});
  CHANNELS.sort((a,b)=>a.num-b.num);mergeDupes();XT.cats.forEach(c=>c.cty=ctyOf(c.name)||'OTHER');
  vodP.then(async([vc,vs,scat,ss])=>{if(XT.gen!==gen)return;const vcn={},scn={};arr(vc).forEach(x=>vcn[x.category_id]=x.category_name);arr(scat).forEach(x=>scn[x.category_id]=x.category_name);
@@ -1684,6 +1699,8 @@ const ACT={
  gcell:el=>{const p=REG[el.dataset.id];if(!p)return;if(isLive(p))playChannel(p.ch);else if(p.end<=now())openDetails(p);else openDetails(p)},
  gtab:el=>{if(S.source==='xt')return guidePick(el.dataset.x);G.cat=el.dataset.x;$$('#gtabs .tab').forEach(t=>t.classList.toggle('sel',t===el));G.time=now();guideRows()},
  gpanel:()=>openGroupPanel(),
+ subRefresh:()=>subRefresh(),
+ subDone:()=>closeModal(),
  lvgrp:el=>{lvRender(el.dataset.x,true)},
  lvch:el=>{const c=REG[el.dataset.id];if(c)playChannel(c)},
  gpick:el=>{const k=el.dataset.x;if(GP.mode==='watch')return gpChannels(k);closeModal(true);if(GP.mode==='home'){G.cat=k;G.picked=true;return go('guide')}guidePick(k)},
@@ -1709,6 +1726,7 @@ const ACT={
  set:el=>{const k=el.dataset.x;
   if(k==='update'){UPD.asked=true;checkUpd(true);return}
   if(k==='hidden')return openHidden();
+  if(k==='sub')return openSub();
   if(k==='epg'){refreshEpg();return go('settings',{focus:'[data-x="epg"]'})}
   if(k==='startView'){S.set.startView=S.set.startView==='live'?'home':'live';save();return go('settings',{focus:'[data-x="startView"]'})}
   if(k==='help')return go('search',{q:'help'});
