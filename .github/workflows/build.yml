@@ -77,6 +77,14 @@ jobs:
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
               <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+              <queries>
+                  <package android:name="com.amazon.firetv.youtube" />
+                  <package android:name="com.amazon.firetv.youtube.tv" />
+                  <package android:name="com.google.android.youtube.tv" />
+                  <package android:name="com.google.android.youtube" />
+                  <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="https" /></intent>
+                  <intent><action android:name="android.intent.action.VIEW" /><data android:scheme="vnd.youtube" /></intent>
+              </queries>
               <uses-feature android:name="android.software.leanback" android:required="false" />
               <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
               <application
@@ -180,20 +188,32 @@ jobs:
                   @JavascriptInterface
                   public boolean isFireTV() { return "Amazon".equalsIgnoreCase(android.os.Build.MANUFACTURER); }
 
-                  /** Open a help video: YouTube app first, then anything that can show the link. */
+                  /** Open a help video in the YouTube app at that video (Fire TV and Android TV need different handling). */
                   @JavascriptInterface
                   public boolean openUrl(String url) {
+                      String id = null;
+                      java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:v=|youtu\\.be/|/shorts/|/embed/)([A-Za-z0-9_-]{11})").matcher(url);
+                      if (m.find()) id = m.group(1);
+                      if (id != null) {
+                          String watch = "https://www.youtube.com/watch?v=" + id;
+                          int fresh = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK;
+                          // Fire TV YouTube (Cobalt) only takes a video when sent straight to its main activity
+                          if (tryStart(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(watch))
+                                  .setClassName("com.amazon.firetv.youtube", "dev.cobalt.app.MainActivity").addFlags(fresh))) return true;
+                          if (tryStart(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(watch)).setPackage("com.amazon.firetv.youtube").addFlags(fresh))) return true;
+                          if (tryStart(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(watch)).setPackage("com.amazon.firetv.youtube.tv").addFlags(fresh))) return true;
+                          // Android TV / Google TV YouTube
+                          if (tryStart(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(watch)).setPackage("com.google.android.youtube.tv").addFlags(fresh))) return true;
+                          if (tryStart(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("vnd.youtube:" + id)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))) return true;
+                          url = watch;
+                      }
+                      return tryStart(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                  }
+
+                  private boolean tryStart(Intent i) {
                       try {
-                          String id = null;
-                          java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:v=|youtu\\.be/|/shorts/)([A-Za-z0-9_-]{11})").matcher(url);
-                          if (m.find()) id = m.group(1);
-                          if (id != null) {
-                              try {
-                                  startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("vnd.youtube:" + id)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                                  return true;
-                              } catch (Exception ignored) { }
-                          }
-                          startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                          if (i.getComponent() == null && i.getPackage() != null && i.resolveActivity(getPackageManager()) == null) return false;
+                          startActivity(i);
                           return true;
                       } catch (Exception e) { return false; }
                   }
