@@ -226,7 +226,7 @@ nav{display:flex;gap:2px}
 .sres{left:-20px;right:-20px;top:64px;bottom:0}
 .sres .grid{grid-template-columns:repeat(3,310px);padding:16px 20px 40px;gap:26px 24px}
 /* settings */
-.st-list{position:absolute;left:90px;top:18px;width:940px}
+.st-wrap{left:90px;top:18px;bottom:64px;width:960px}.st-list{position:relative;width:940px;padding-bottom:10px}
 .st-row{height:80px;border-radius:18px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;font-size:calc(24px*var(--fs,1));font-weight:700;background:#ffffff0d;margin-bottom:12px;cursor:pointer;gap:20px}
 .st-row .v{color:#ffffffa8;font-weight:600;font-size:calc(21px*var(--fs,1))}
 .st-row.foc{background:#fff;color:#0a0d22}.st-row.foc .v{color:#0a0d22b0}
@@ -1266,7 +1266,7 @@ const SETROWS=[
  ['reset','Reset demo data',()=>'','Clears your playlist, reminders, recently watched and settings on this device.'],
 ];
 V.settings={
- render(){return `<div class="st-list">${SETROWS.map(([k,l,v])=>{const val=v();return `<div class="st-row f" data-a="set" data-x="${k}"><span>${l}</span>${typeof val==='boolean'?`<span class="tg${val?' on':''}"></span>`:`<span class="v">${esc(val)}</span>`}</div>`}).join('')}</div><div class="st-side" id="stside"></div><div class="hintbar">Remote: ▲▼◀▶ move · OK select · Back · 0-9 channel · Ch± zap · ▶❚❚ (P) Picture-in-Picture</div>`},
+ render(){return `<div class="vs st-wrap"><div class="vs-in st-list">${SETROWS.map(([k,l,v])=>{const val=v();return `<div class="st-row f" data-a="set" data-x="${k}"><span>${l}</span>${typeof val==='boolean'?`<span class="tg${val?' on':''}"></span>`:`<span class="v">${esc(val)}</span>`}</div>`}).join('')}</div></div><div class="st-side" id="stside"></div><div class="hintbar">Remote: ▲▼◀▶ move · OK select · Back · 0-9 channel · Ch± zap · ▶❚❚ (P) Picture-in-Picture</div>`},
  onFocus(el){const r=SETROWS.find(x=>x[0]===el.dataset.x);if(r)$('#stside').innerHTML=`<h3>${r[1]}</h3><p>${r[3]}</p>`}
 };
 
