@@ -1,0 +1,454 @@
+{
+ "version": 1,
+ "note": "Ask Primo help topics. Edit q, keys, steps or video (a YouTube link, or empty). PRIMO picks up changes next time it opens.",
+ "items": [
+  {
+   "id": "devfire",
+   "dev": "firetv",
+   "q": "Turn on developer options (Fire TV)",
+   "keys": [
+    "developer",
+    "dev mode",
+    "developer mode",
+    "developer options",
+    "unknown sources",
+    "unknown apps",
+    "sideload",
+    "install apps",
+    "allow apps"
+   ],
+   "steps": [
+    "Press the Home button, then go right to Settings (the cog).",
+    "Open My Fire TV, then About.",
+    "Highlight your device name (e.g. Fire TV Stick 4K) and press the centre button 7 times, until it says you are now a developer.",
+    "Press Back. Developer options now appears in My Fire TV."
+   ],
+   "video": "https://www.youtube.com/watch?v=WqRVrhYxvPQ"
+  },
+  {
+   "id": "unknownfire",
+   "dev": "firetv",
+   "q": "Allow Downloader to install apps (Fire TV)",
+   "keys": [
+    "downloader",
+    "install unknown",
+    "unknown apps",
+    "unknown sources",
+    "install apk",
+    "apk",
+    "install primo",
+    "sideload",
+    "allow apps"
+   ],
+   "steps": [
+    "Install Downloader from the Amazon Appstore (search for Downloader).",
+    "Turn on developer options first (ask: turn on developer options).",
+    "Go to Settings, My Fire TV, Developer options, Install unknown apps.",
+    "Switch Downloader to On. You can now install apps with Downloader."
+   ],
+   "video": "https://www.youtube.com/watch?v=nH3IY1N64-4"
+  },
+  {
+   "id": "devandroid",
+   "dev": "android",
+   "q": "Turn on developer options (Android TV / Google TV)",
+   "keys": [
+    "developer",
+    "dev mode",
+    "developer mode",
+    "developer options",
+    "google tv",
+    "android tv",
+    "homatics",
+    "chromecast",
+    "build number"
+   ],
+   "steps": [
+    "Open Settings, then System, then About.",
+    "Scroll to Android TV OS build and press OK on it 7 times, until it says you are a developer.",
+    "Press Back. Developer options now appears under System."
+   ],
+   "video": "https://www.youtube.com/watch?v=xzkXobNdW78"
+  },
+  {
+   "id": "unknownandroid",
+   "dev": "android",
+   "q": "Allow apps from unknown sources (Android TV / Google TV)",
+   "keys": [
+    "unknown sources",
+    "unknown apps",
+    "install unknown",
+    "install apk",
+    "apk",
+    "sideload",
+    "downloader",
+    "allow apps"
+   ],
+   "steps": [
+    "Turn on developer options first (ask: turn on developer options).",
+    "Open Settings, then Apps, then Security & restrictions, then Unknown sources. On some boxes it is Apps, Special app access, Install unknown apps.",
+    "Switch on the app you install with, such as Downloader or your file manager."
+   ],
+   "video": "https://www.youtube.com/watch?v=0de3tR3BT3E"
+  },
+  {
+   "id": "buffer",
+   "dev": "all",
+   "q": "Fix buffering and freezing",
+   "keys": [
+    "buffer",
+    "buffering",
+    "freez",
+    "freezing",
+    "stutter",
+    "stuttering",
+    "lag",
+    "lagging",
+    "keeps stopping",
+    "loading",
+    "jumpy",
+    "choppy",
+    "pixel"
+   ],
+   "steps": [
+    "Restart your box and your router: unplug both for 30 seconds.",
+    "Use a wired connection if you can, or the 5 GHz Wi-Fi network, and keep the box close to the router.",
+    "In PRIMO, lower Settings, Preferred quality to HD, or press OK while watching and choose Quality.",
+    "Turn on Settings, Full-screen player for live TV.",
+    "Clear the cache of apps you use (ask: clear cache).",
+    "Check your speed (ask: internet speed). HD needs about 10 Mbps, 4K about 25 Mbps."
+   ],
+   "video": "https://www.youtube.com/watch?v=ceK1tIx6iA8"
+  },
+  {
+   "id": "cache",
+   "dev": "firetv",
+   "q": "Clear the cache (Fire TV)",
+   "keys": [
+    "cache",
+    "clear cache",
+    "clear data",
+    "storage",
+    "space",
+    "running slow",
+    "slow",
+    "memory",
+    "full"
+   ],
+   "steps": [
+    "Go to Settings, Applications, Manage Installed Applications.",
+    "Pick the app (e.g. PRIMO) and choose Clear cache. Don't choose Clear data unless you want to sign in again.",
+    "Newer Fire TVs also have Clear all application caches on the Manage Installed Applications screen.",
+    "Restart the Fire TV afterwards."
+   ],
+   "video": "https://www.youtube.com/watch?v=vYLYdUOtBfw"
+  },
+  {
+   "id": "cacheall",
+   "dev": "firetv",
+   "q": "Fire TV running slow or low on space",
+   "keys": [
+    "slow",
+    "running slow",
+    "sluggish",
+    "storage",
+    "space",
+    "low storage",
+    "full",
+    "speed up"
+   ],
+   "steps": [
+    "Restart the Fire TV: hold Select and Play/Pause together for 5 seconds.",
+    "Clear all app caches: Settings, Applications, Manage Installed Applications, Clear all application caches.",
+    "Uninstall apps you don't use from the same screen.",
+    "Turn off Settings, Preferences, Featured content autoplay to save memory."
+   ],
+   "video": "https://www.youtube.com/watch?v=cPBVT1RgP-8"
+  },
+  {
+   "id": "nopicture",
+   "dev": "all",
+   "q": "A channel won't play or shows a black screen",
+   "keys": [
+    "won't play",
+    "wont play",
+    "not playing",
+    "black screen",
+    "no picture",
+    "not working",
+    "channel down",
+    "offline",
+    "error",
+    "doesn't work",
+    "doesnt work"
+   ],
+   "steps": [
+    "Press OK while watching and choose Quality to try another version of the channel.",
+    "Turn on Settings, Full-screen player for live TV, then try again.",
+    "Try another channel. If none play, restart your box and router.",
+    "If only one channel fails, it may be down at the provider's end — try again later."
+   ],
+   "video": ""
+  },
+  {
+   "id": "nosound",
+   "dev": "all",
+   "q": "No sound, or sound but no picture",
+   "keys": [
+    "no sound",
+    "sound",
+    "audio",
+    "no audio",
+    "silent",
+    "dolby",
+    "surround",
+    "sound but no picture"
+   ],
+   "steps": [
+    "Check the TV and sound bar volume and that the right input is selected.",
+    "Fire TV: Settings, Display & Sounds, Audio, Surround Sound — try Stereo or Best available.",
+    "Try the Full-screen player (Settings, Full-screen player for live TV), which handles more audio formats.",
+    "Try another Quality version of the channel."
+   ],
+   "video": ""
+  },
+  {
+   "id": "login",
+   "dev": "all",
+   "q": "Can't sign in / login rejected",
+   "keys": [
+    "login",
+    "log in",
+    "sign in",
+    "signin",
+    "password",
+    "username",
+    "rejected",
+    "can't log",
+    "cant log",
+    "account",
+    "expired",
+    "subscription"
+   ],
+   "steps": [
+    "Check the username and password exactly as given to you — they are case sensitive and easy to mistype on a remote.",
+    "Check your subscription hasn't expired.",
+    "Restart the box and try again.",
+    "Still stuck? Contact whoever supplied your login."
+   ],
+   "video": ""
+  },
+  {
+   "id": "connections",
+   "dev": "all",
+   "q": "Stops when someone else is watching",
+   "keys": [
+    "connection",
+    "connections",
+    "too many",
+    "max connections",
+    "another device",
+    "other device",
+    "two devices",
+    "stops when",
+    "kicked",
+    "limit"
+   ],
+   "steps": [
+    "Most logins only allow a set number of devices to watch at the same time.",
+    "Close PRIMO on other devices (press Back until it asks to exit) when you're not watching.",
+    "Multiview uses one connection per screen, so four screens can use up four connections.",
+    "Ask your supplier if you need more connections."
+   ],
+   "video": ""
+  },
+  {
+   "id": "guide",
+   "dev": "all",
+   "q": "TV guide is missing or says 'loading'",
+   "keys": [
+    "guide",
+    "epg",
+    "listings",
+    "no guide",
+    "guide missing",
+    "guide information",
+    "what's on",
+    "schedule",
+    "loading"
+   ],
+   "steps": [
+    "Guide listings come from your provider and load a few channels at a time — give it a moment.",
+    "Some channels simply have no guide information.",
+    "If the whole guide is empty, restart PRIMO."
+   ],
+   "video": ""
+  },
+  {
+   "id": "catchup",
+   "dev": "all",
+   "q": "Watch from the start / catch up isn't available",
+   "keys": [
+    "catch up",
+    "catchup",
+    "watch from start",
+    "from the start",
+    "restart",
+    "rewind",
+    "missed",
+    "archive",
+    "timeshift"
+   ],
+   "steps": [
+    "Watch from the start only works on channels your provider records.",
+    "On other channels the button is hidden, and Catch me up tells you the channel isn't recorded.",
+    "Use Time Machine to see what's on recorded channels earlier today."
+   ],
+   "video": ""
+  },
+  {
+   "id": "update",
+   "dev": "all",
+   "q": "Update PRIMO",
+   "keys": [
+    "update",
+    "new version",
+    "latest version",
+    "upgrade",
+    "install primo",
+    "reinstall",
+    "download primo"
+   ],
+   "steps": [
+    "In PRIMO go to Settings, Update PRIMO and press OK. It downloads and installs over the top — your logins and favourites stay.",
+    "Or open Downloader and enter the PRIMO download link you were given."
+   ],
+   "video": ""
+  },
+  {
+   "id": "restart",
+   "dev": "firetv",
+   "q": "Restart the Fire TV",
+   "keys": [
+    "restart",
+    "reboot",
+    "turn off",
+    "switch off",
+    "frozen",
+    "stuck",
+    "crash",
+    "crashed",
+    "hang"
+   ],
+   "steps": [
+    "Hold Select (the centre button) and Play/Pause together for about 5 seconds until the screen goes off.",
+    "Or go to Settings, My Fire TV, Restart.",
+    "If it's completely stuck, unplug the power for 30 seconds."
+   ],
+   "video": ""
+  },
+  {
+   "id": "remote",
+   "dev": "firetv",
+   "q": "Remote not working / pair the remote",
+   "keys": [
+    "remote",
+    "pair",
+    "pairing",
+    "remote not working",
+    "buttons",
+    "not responding"
+   ],
+   "steps": [
+    "Try new batteries.",
+    "Pair it again: hold the Home button for 10 seconds, close to the Fire TV.",
+    "Use the Fire TV app on your phone as a remote while you sort it out."
+   ],
+   "video": ""
+  },
+  {
+   "id": "speed",
+   "dev": "all",
+   "q": "Check your internet speed",
+   "keys": [
+    "speed",
+    "internet speed",
+    "speed test",
+    "speedtest",
+    "bandwidth",
+    "wifi",
+    "wi-fi",
+    "internet",
+    "connection slow"
+   ],
+   "steps": [
+    "Install a speed test app such as Analiti or Speedtest from your app store.",
+    "HD needs about 10 Mbps and 4K about 25 Mbps — more if others are using the internet at the same time.",
+    "If it's slow, restart the router, move the box closer or use a wired connection."
+   ],
+   "video": ""
+  },
+  {
+   "id": "favs",
+   "dev": "all",
+   "q": "Add favourite channels",
+   "keys": [
+    "favourite",
+    "favorite",
+    "favourites",
+    "favorites",
+    "star",
+    "save channel"
+   ],
+   "steps": [
+    "While watching, press OK and choose Favourite +.",
+    "Favourites appear first in the TV Guide, on Home, in Time Machine and in Multiview."
+   ],
+   "video": ""
+  },
+  {
+   "id": "countries",
+   "dev": "all",
+   "q": "Hide countries and groups I don't watch",
+   "keys": [
+    "country",
+    "countries",
+    "hide",
+    "hidden",
+    "groups",
+    "too many channels",
+    "foreign",
+    "only uk",
+    "scrolling"
+   ],
+   "steps": [
+    "Go to Settings, Countries. Press Hide all, then switch on just the countries you want.",
+    "Settings, Hidden channels & groups hides individual groups too.",
+    "Settings, One entry per channel shows each channel once instead of SD/HD/FHD/4K copies."
+   ],
+   "video": ""
+  },
+  {
+   "id": "multiview",
+   "dev": "all",
+   "q": "Watch several channels at once",
+   "keys": [
+    "multiview",
+    "multi view",
+    "multiple channels",
+    "two channels",
+    "four channels",
+    "split screen",
+    "picture in picture",
+    "pip"
+   ],
+   "steps": [
+    "Open Multiview from the top menu.",
+    "Pick a screen, then choose a channel from the list on the right to put it there.",
+    "Sound follows whichever screen is highlighted. Press OK to watch it full screen.",
+    "Each screen uses one of your connections."
+   ],
+   "video": ""
+  }
+ ]
+}
