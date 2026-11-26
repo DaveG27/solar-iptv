@@ -1260,6 +1260,7 @@ const SETROWS=[
  ['frame','Start Frame Mode',()=>'','Turn the TV into ambient art with a clock and glanceable info. It also starts by itself after 3 minutes idle.'],
  ['source','PRIMO logins',()=>S.source==='xt'&&S.xtCreds?provName(S.xtCreds)+(getProvs().length>1?` · ${getProvs().length} saved`:''):'Demo content','Sign in with your PRIMO username and password. You can save more than one login and switch between them.'],
  ['hidden','Hidden channels & groups',()=>`${LISTS.hid.length} channel${LISTS.hid.length===1?'':'s'} · ${LISTS.hidc.length} group${LISTS.hidc.length===1?'':'s'}`,'Hide whole channel groups you never watch, or bring back channels you hid. To hide one channel, open its Info and choose Hide channel. Favourites show in the TV Guide and on Home.'],
+ ['epg','Refresh TV guide',()=>XT.epgLast?'Updated '+fmtT(XT.epgLast):'—','Fetches fresh listings from your provider. PRIMO also refreshes each channel by itself every few hours while it\'s open. Press OK to refresh now.'],
  ['update','Update PRIMO',()=>UPD.msg||('v'+(window.Android&&Android.versionName?Android.versionName():'web')),'Checks for a newer PRIMO and installs it over the top. Your providers, profiles and settings stay.'],
  ['reset','Reset demo data',()=>'','Clears your playlist, reminders, recently watched and settings on this device.'],
 ];
@@ -1643,8 +1644,16 @@ async function xtLoad(c){
  return{ch:CHANNELS.length,mv:MOVIES.length,sr:SERIES.length};
 }
 function phProg(ch){return reg(deco({kind:'prog',id:'p'+ch.sid+'_ph',ch,title:ch.name,ph:1,start:ANCHOR,end:END,genre:CATS[ch.cat],pool:'',desc:'Guide information is loading…',hue:ch.hue},'x'))}
-function needEpg(ch){if(!ch||ch.epgReq||!XT.get)return;ch.epgReq=1;XT.q.push(ch);pumpEpg()}
-function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++;XT.get(XT.api(`get_short_epg&stream_id=${ch.sid}&limit=30`)).then(j=>{const L=(j&&j.epg_listings)||[];const ps=L.map(x=>reg(deco({kind:'prog',id:`p${ch.sid}_${x.start_timestamp}`,ch,title:b64(x.title)||ch.name,desc:b64(x.description),start:+x.start_timestamp*1000,end:+x.stop_timestamp*1000,genre:CATS[ch.cat],pool:'',hue:(ch.hue+hash(b64(x.title))%40)%360},'x'))).filter(p=>p.end>p.start).sort((a,b)=>a.start-b.start);if(ps.length)ch.epg=ps}).catch(()=>{}).finally(()=>{XT.busy--;epgRefresh(ch);pumpEpg()})}}
+const EPG_STALE=3*3600e3;
+function epgStale(ch){if(!ch.epgAt)return true;if(Date.now()-ch.epgAt>EPG_STALE)return true;const L=ch.epg;return !!(L&&L.length&&L[L.length-1].end<now()+3600e3)}
+function needEpg(ch){if(!ch||ch.epgQ||!XT.get||!epgStale(ch))return;ch.epgQ=1;XT.q.push(ch);pumpEpg()}
+function refreshEpg(){if(S.source!=='xt'||!XT.get){toast('The TV guide refreshes with a provider signed in','close');return}
+ XT.q.length=0;CHANNELS.forEach(c=>{c.epgAt=0});
+ const want=[...chans().filter(c=>isFav(c.id)),...recentChans()];
+ if(S.view==='guide')G.rows.slice(0,40).forEach(c=>want.push(c));if(S.view==='live')$$('#lvc .lvc').slice(0,20).forEach(e=>want.push(REG[e.dataset.id]));
+ const cur=P.cur&&P.cur.kind==='channel'?(P.cur.dupOf||P.cur):null;if(cur)want.unshift(cur);
+ want.filter(Boolean).forEach(needEpg);XT.epgLast=Date.now();toast('Refreshing the TV guide — new listings appear as each channel updates','guide')}
+function pumpEpg(){while(XT.busy<4&&XT.q.length){const ch=XT.q.shift();XT.busy++;XT.get(XT.api(`get_short_epg&stream_id=${ch.sid}&limit=30`)).then(j=>{const L=(j&&j.epg_listings)||[];const ps=L.map(x=>reg(deco({kind:'prog',id:`p${ch.sid}_${x.start_timestamp}`,ch,title:b64(x.title)||ch.name,desc:b64(x.description),start:+x.start_timestamp*1000,end:+x.stop_timestamp*1000,genre:CATS[ch.cat],pool:'',hue:(ch.hue+hash(b64(x.title))%40)%360},'x'))).filter(p=>p.end>p.start).sort((a,b)=>a.start-b.start);if(ps.length)ch.epg=ps}).catch(()=>{}).finally(()=>{XT.busy--;ch.epgQ=0;ch.epgAt=Date.now();XT.epgLast=XT.epgLast||Date.now();epgRefresh(ch);pumpEpg()})}}
 const EPGDIRTY=new Set();let epgT;function epgRefresh(ch){if(ch)EPGDIRTY.add(ch);clearTimeout(epgT);epgT=setTimeout(()=>{if(S.view!=='guide'){EPGDIRTY.clear();return}const fr=FOC&&FOC.classList.contains('gc')?+FOC.dataset.r:null;let refocus=false;
  for(const c of EPGDIRTY){const i=G.rows.indexOf(c);if(i<0)continue;const row=$$('#grows .g-row')[i];if(!row)continue;row.innerHTML=guideCells(c,i);if(i===fr)refocus=true}EPGDIRTY.clear();
  if(refocus&&!modalOn()){const c=cellAt(fr,G.time);if(c){FOC=null;setFocus(c)}}},250)}
@@ -1700,6 +1709,7 @@ const ACT={
  set:el=>{const k=el.dataset.x;
   if(k==='update'){UPD.asked=true;checkUpd(true);return}
   if(k==='hidden')return openHidden();
+  if(k==='epg'){refreshEpg();return go('settings',{focus:'[data-x="epg"]'})}
   if(k==='startView'){S.set.startView=S.set.startView==='live'?'home':'live';save();return go('settings',{focus:'[data-x="startView"]'})}
   if(k==='help')return go('search',{q:'help'});
   if(k==='countries')return S.source==='xt'?openCountries():toast('Countries come from your provider — sign in first','tv');
